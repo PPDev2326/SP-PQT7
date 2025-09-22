@@ -1,7 +1,21 @@
 # -*- coding: utf-8 -*-
 __title__ = "Uniclass Transfer"
 __doc__ = """
-Logramos el sincronizarnos con GitHub 🥳🥳
+Version = 1.0
+Date = 22.09.2025
+------------------------------------------------------------------
+Description:
+Nos permitira unir parametros Uniclass en el ItemReference.
+------------------------------------------------------------------
+¿Cómo hacerlo?
+-> Click en el boton
+-> Seleccionamos los elementos de la vista
+-> Click en finalizar en la parte superior
+------------------------------------------------------------------
+Última actualización:
+- [22.09.2025] - 1.1 UPDATE - New Feature
+------------------------------------------------------------------
+Autor: Paolo Perez
 """
 
 from pyrevit import forms, script, revit

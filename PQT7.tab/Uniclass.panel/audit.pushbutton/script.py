@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 __title__ = "Uniclass Transfer"
 __doc__ = """
-Version = 1.0
+Version = 1.1
 Date = 22.09.2025
 ------------------------------------------------------------------
 Description:

@@ -44,8 +44,8 @@ selected_elements = [doc.GetElement(ref) for ref in selected_refs]
 
 # Mapeo de parámetros: origen -> destino
 param_map = {
-    "Classification.Uniclass.Pr.Number": "ClassificationReference.ItemReference",
-    "Classification.Uniclass.Pr.Description": "ClassificationReference.Name"
+    "Classification.Uniclass.Ss.Number": "ClassificationReference.ItemReference",
+    "Classification.Uniclass.Ss.Description": "ClassificationReference.Name"
 }
 
 # Para evitar procesar el mismo tipo varias veces

@@ -2,42 +2,47 @@
 __title__ = "On/Off COBie"
 
 from pyrevit import forms, revit, script
-from Autodesk.Revit.DB import BuiltInParameter, StorageType, FamilyInstance
+from Autodesk.Revit.DB import StorageType, FamilyInstance
 from Autodesk.Revit.UI import TaskDialog, TaskDialogResult, TaskDialogCommonButtons
 from Autodesk.Revit.UI.Selection import ObjectType
 from Autodesk.Revit.Exceptions import OperationCanceledException
 from Extensions._Modulo import obtener_nombre_archivo, validar_nombre
-from Extensions._Ignore import leer_excel_filtrado, ignorar_categorias
-from Extensions._Dictionary import obtener_especialidad
-
+from Extensions._Ignore import leer_excel_filtrado
 
 def set_param(param, val):
     """Establece un valor entero en el parámetro si es modificable."""
     if param and not param.IsReadOnly and param.StorageType == StorageType.Integer:
         param.Set(val)
 
+def get_codigo_partida(elemento):
+    """Obtiene el código de partida del elemento de instancia."""
+    param = elemento.LookupParameter("S&P_CODIGO PARTIDA N°1")
+    if param and param.HasValue:
+        return param.AsString()
+    return None
 
-def compute_value(code, excel_set, especialidad, categoria, ignore_cats, activate):
+def compute_value(code, sin_cobie_set, con_cobie_set, activate):
     """
-    Determina el valor (0 o 1) según el modo (activar/desactivar) y la lógica de especialidad.
+    Determina el valor (0 o 1) según el modo y si el código está en las listas del Excel.
     """
     if not activate:
         return 0
-    if especialidad in ("Arquitectura", "Equipamiento y mobiliario"):
-        return 0 if (not code or code in excel_set) else 1
-    if especialidad == "Estructuras":
+    # Si el código está en la lista COBie (Y), devolver 1
+    if code and code in con_cobie_set:
         return 1
-    return 1 if categoria not in ignore_cats else 0
+    # Si el código está en la lista sin COBie (N), devolver 0
+    if code and code in sin_cobie_set:
+        return 0
+    # Si no está en ninguna lista, comportamiento por defecto
+    return 0
 
-# Validar nombre de archivo y salir si no es válido
 if not validar_nombre(obtener_nombre_archivo()):
     script.exit()
 
 # Diálogo nativo: Yes = Activar, No = Desactivar
-button_flags = TaskDialogCommonButtons.Yes | TaskDialogCommonButtons.No
 result = TaskDialog.Show(
-    "Modo de operación",          # título
-    "¿Deseas ACTIVAR COBie?",     # instrucción
+    "Modo de operación",
+    "¿Deseas ACTIVAR COBie?",
     TaskDialogCommonButtons.Yes | TaskDialogCommonButtons.No
 )
 if result == TaskDialogResult.Yes:
@@ -49,18 +54,19 @@ else:
 
 # Selección de elementos y configuración inicial
 try:
-    ui_doc     = __revit__.ActiveUIDocument
-    refs       = ui_doc.Selection.PickObjects(ObjectType.Element)
-    esp        = obtener_especialidad()
-    ign_cats   = ignorar_categorias()
-    excel_vals = leer_excel_filtrado() if esp in ("Arquitectura", "Equipamiento y mobiliario") else set()
+    ui_doc = revit.uidoc
+    doc = revit.doc
+    refs = ui_doc.Selection.PickObjects(ObjectType.Element)
+    sin_cobie, con_cobie = leer_excel_filtrado()
 except OperationCanceledException:
     script.exit()
 
-# Preparar caché y tracker de tipos
-tipo_codes = {}
-processed_types = set()
-doc = ui_doc.Document
+# Convertir listas a sets para búsquedas más rápidas
+sin_cobie_set = set(sin_cobie)
+con_cobie_set = set(con_cobie)
+
+# Tracker de tipos procesados por código de partida
+processed_codes_types = {}
 
 # Ejecutar transacción general
 with revit.Transaction("Toggle COBieType & COBie Component"):
@@ -81,38 +87,36 @@ with revit.Transaction("Toggle COBieType & COBie Component"):
                         if sub_elem:
                             elementos_a_procesar.append(sub_elem)
             except:
-                pass  # Por si algún caso lanza excepción
+                pass
 
         # Procesar el elemento y sus subcomponentes si los hay
         for el in elementos_a_procesar:
             if not el.Category:
                 continue
 
-            cat = el.Category.Name
+            # Obtener código de partida del elemento de instancia
+            code = get_codigo_partida(el)
+            
+            # Calcular valor según lógica COBie
+            v = compute_value(code, sin_cobie_set, con_cobie_set, modo_activar)
+
+            # Procesar tipo (COBie.Type) - solo una vez por código de partida único
             t_id = el.GetTypeId()
-            tipo = doc.GetElement(t_id)
-            if not tipo:
-                continue
+            if code and code not in processed_codes_types:
+                tipo = doc.GetElement(t_id)
+                if tipo:
+                    p_type = tipo.LookupParameter("COBie.Type")
+                    set_param(p_type, v)
+                    processed_codes_types[code] = t_id
 
-            if t_id not in tipo_codes:
-                p_u = tipo.get_Parameter(BuiltInParameter.UNIFORMAT_CODE)
-                tipo_codes[t_id] = p_u.AsString() if p_u and p_u.HasValue else None
-            code = tipo_codes[t_id]
-
-            v = compute_value(code, excel_vals, esp, cat, ign_cats, modo_activar)
-
-            if t_id not in processed_types:
-                p_type = tipo.LookupParameter("COBie.Type")
-                set_param(p_type, v)
-                processed_types.add(t_id)
-
+            # Procesar instancia (COBie)
             p_inst = el.LookupParameter("COBie")
             set_param(p_inst, v)
 
 # Mostrar resultado final
 title = "Resultado"
-message = "Procesados: {0} elementos, {1} tipos.\nModo: {2}".format(
-    len(refs), len(processed_types),
+message = "Procesados: {0} elementos, {1} códigos únicos.\nModo: {2}".format(
+    len(refs), len(processed_codes_types),
     "ACTIVAR" if modo_activar else "DESACTIVAR"
 )
 forms.alert(message, title=title, exitscript=False)

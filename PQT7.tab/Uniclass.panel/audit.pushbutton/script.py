@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 __title__ = "Uniclass Transfer"
-"""Logramos el sincronizarnos con GitHub 🥳🥳"""
+__doc__ = """
+Logramos el sincronizarnos con GitHub 🥳🥳
+"""
 
 from pyrevit import forms, script, revit
 from Autodesk.Revit.UI.Selection import ObjectType
@@ -28,8 +30,8 @@ selected_elements = [doc.GetElement(ref) for ref in selected_refs]
 
 # Mapeo de parámetros: origen -> destino
 param_map = {
-    "Classification.Uniclass.Ss.Number": "ClassificationReference.ItemReference",
-    "Classification.Uniclass.Ss.Description": "ClassificationReference.Name"
+    "Classification.Uniclass.Pr.Number": "ClassificationReference.ItemReference",
+    "Classification.Uniclass.Pr.Description": "ClassificationReference.Name"
 }
 
 # Para evitar procesar el mismo tipo varias veces

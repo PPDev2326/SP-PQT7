@@ -64,7 +64,7 @@ if not validar_nombre(obtener_nombre_archivo()):
 # TaskDialog más intuitivo con mensaje claro
 result = TaskDialog.Show(
     "COBie Manager",
-    "¿Qué acción deseas realizar?\n\nYES = ACTIVAR COBie (valor 1)\nNO = DESACTIVAR COBie (valor 0)",
+    "¿Qué acción deseas realizar?\n\nSI = ACTIVAR COBie (valor 1)\nNO = DESACTIVAR COBie (valor 0)",
     TaskDialogCommonButtons.Yes | TaskDialogCommonButtons.No
 )
 
@@ -111,6 +111,12 @@ print("Especialidad del documento: {}".format(specialty_name))
 # Tracker de tipos procesados por código de partida
 processed_codes_types = {}
 elementos_procesados = 0
+
+# Contadores para estadísticas detalladas
+instancias_valor_1 = 0
+instancias_valor_0 = 0
+tipos_valor_1 = 0
+tipos_valor_0 = 0
 
 # Calcular total de elementos a procesar para la barra de progreso
 total_elementos = 0
@@ -185,10 +191,21 @@ with revit.Transaction("Toggle COBieType & COBie Component"):
                         p_type = tipo.LookupParameter("COBie.Type")
                         set_param(p_type, v)
                         processed_codes_types[code] = t_id
+                        # Contar tipos según valor
+                        if v == 1:
+                            tipos_valor_1 += 1
+                        else:
+                            tipos_valor_0 += 1
 
                 # Procesar instancia (COBie)
                 p_inst = el.LookupParameter("COBie")
                 set_param(p_inst, v)
+                
+                # Contar instancias según valor
+                if v == 1:
+                    instancias_valor_1 += 1
+                else:
+                    instancias_valor_0 += 1
                 
                 elementos_procesados += 1
 
@@ -207,7 +224,18 @@ print("Elementos procesados: {}".format(elementos_procesados))
 print("Codigos unicos de partida: {}".format(len(processed_codes_types)))
 print("Modo aplicado: {}".format("ACTIVAR" if modo_activar else "DESACTIVAR"))
 print("Especialidad: {}".format(specialty_name))
+
+print("\n--- ESTADISTICAS DETALLADAS ---")
+print("INSTANCIAS:")
+print("  - Con valor 1 (activadas): {}".format(instancias_valor_1))
+print("  - Con valor 0 (desactivadas): {}".format(instancias_valor_0))
+print("TIPOS:")
+print("  - Con valor 1 (activados): {}".format(tipos_valor_1))
+print("  - Con valor 0 (desactivados): {}".format(tipos_valor_0))
+
 if modo_activar:
-    print("Codigos activados (valor 1): {}".format(len(con_cobie)))
-    print("Codigos desactivados (valor 0): {}".format(len(sin_cobie)))
+    print("\n--- DATOS DEL EXCEL ---")
+    print("Codigos definidos con COBie (Y): {}".format(len(con_cobie)))
+    print("Codigos definidos sin COBie (N): {}".format(len(sin_cobie)))
+    
 print("¡Proceso completado exitosamente!")

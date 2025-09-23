@@ -141,12 +141,12 @@ class SpecialtiesRepository(ISpecialtyRepository):
             dict: Diccionario con las especialidades indexadas por sufijo
         """
         specialties = {
-            "AR": Specialty("ARQUITECTURA", "AR"),
+            "AR": Specialty("ARQUITECTURA", "AR", "Durabilidad a largo plazo", "Reglamento Nacional de Edificaciones (RNE)", "Resistencia a largo plazo"),
             "ST": Specialty("ESTRUCTURAS", "ST"),
-            "PL": Specialty("INSTALACIONES SANITARIAS", "PL"),
-            "EE": Specialty("INSTALACIONES ELECTRICAS", "EE"),
-            "DT": Specialty("COMUNICACIONES", "DT"),
-            "ME": Specialty("INSTALACIONES MECANICAS", "ME")  # Corregido el sufijo
+            "PL": Specialty("INSTALACIONES SANITARIAS", "PL", "Resistencia al agua", "Norma Técnica de Edificación E.040", "Bajo consumo de agua"),
+            "EE": Specialty("INSTALACIONES ELECTRICAS", "EE", "Eficiencia energética", "Código Nacional de Electricidad (CNE)", "Eficiencia energetica"),
+            "DT": Specialty("COMUNICACIONES", "DT", "Durabilidad a largo plazo", "Norma Técnica de Edificación E.090", "Resistencia a largo plazo"),
+            "ME": Specialty("INSTALACIONES MECANICAS", "ME", "Eficiencia energética", "Reglamento Nacional de Edificaciones (RNE)", "Eficiencia energetica")
         }
         
         return specialties

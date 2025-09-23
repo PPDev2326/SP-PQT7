@@ -1,23 +1,35 @@
 # -*- coding: utf-8 -*-
 __title__ = "COBie Type"
 
-from Autodesk.Revit.DB import BuiltInParameter, StorageType, UnitUtils, UnitTypeId, FamilyInstance
+from Autodesk.Revit.DB import BuiltInParameter, StorageType, UnitUtils, UnitTypeId, FamilyInstance, ElementType
 from Autodesk.Revit.UI import TaskDialog
 from pyrevit import script, revit
 from Extensions._RevitAPI import getParameter, GetParameterAPI, SetParameter
-from Extensions._Dictionary import obtener_especialidad, obtener_model_number, ObtenerCodigoColegio, ObtenerCaracteristicas
+from DBRepositories.SpecialtiesRepository import SpecialtiesRepository
+from DBRepositories.SchoolRepository import ColegiosRepository
+from Helper._Dictionary import get_formatted_string
 
 uidoc = revit.uidoc
 doc = revit.doc
 
-# ==== Datos estáticos ====
-especialidad = obtener_especialidad()
-caracteristicas = ObtenerCaracteristicas(especialidad)
-creado_por = MANUFACTURER = GUARANTOR_PARTS = GUARANTOR_LABOR = "pruiz@cgeb.com.pe"
-hora_creacion = "2025-04-18T16:45:10"
+# ==== Obtenemos la especialidad del modelo activo y sus datos ====
+specialty_object = SpecialtiesRepository().get_specialty_by_document(doc)
+if specialty_object:
+    specialty = specialty_object.name
+    sp_accesibility = specialty_object.accessibility_performance
+    sp_code = specialty_object.code_perfomance
+    sp_sustainability = specialty_object.sustainability
 
-assettype = "Semi-fijo" if especialidad in ["Arquitectura, Señaletica y evacuacion, Equipamiento y mobiliario"] else "Fijo"
-model_number = modelref = size = finish = obtener_model_number()
+# ==== Obtenemos el colegio correspondiente segun modelo y sus datos necesarios ====
+school_object = ColegiosRepository.codigo_colegio(doc)
+if school_object:
+    school = school_object.name
+    created_by_value = school_object.created_by
+
+# ==== Datos estáticos ====
+CREATED_ON = "2025-08-04T11:59:30"
+
+# ==== Datos a revisar ====
 DURATION_PARTS = DURATION_LABOR = EXPECTED_LIFE = "5"
 DURATION_UNIT = "Años"
 REPLACEMENT_COST = 1.00
@@ -27,11 +39,11 @@ SHAPE = "Poligonal - Segun modelo"
 COLOR = "Basicos"
 GRADE = "Grado Estandar"
 MATERIAL = "Varios"
-features, access_performance, code_performance, sustainability_performance, constituents = caracteristicas
+# ==== Fin de datos a revisar ====
 
 parameters_static = {
-    "COBie.Type.CreatedBy": creado_por,
-    "COBie.Type.CreatedOn": hora_creacion,
+    "COBie.Type.CreatedBy": created_by_value,
+    "COBie.Type.CreatedOn": CREATED_ON,
     "COBie.Type.AssetType": assettype,
     "COBie.Type.Manufacturer": MANUFACTURER,
     "COBie.Type.ModelNumber": model_number,
@@ -55,9 +67,9 @@ parameters_static = {
     "COBie.Type.Grade": GRADE,
     "COBie.Type.Material": MATERIAL,
     "COBie.Type.Features": features,
-    "COBie.Type.AccessibilityPerformance": access_performance,
-    "COBie.Type.CodePerformance": code_performance,
-    "COBie.Type.SustainabilityPerformance": sustainability_performance,
+    "COBie.Type.AccessibilityPerformance": sp_accesibility,
+    "COBie.Type.CodePerformance": sp_code,
+    "COBie.Type.SustainabilityPerformance": sp_sustainability,
     "COBie.Type.Constituents": constituents
 }
 
@@ -84,28 +96,48 @@ for element in selection:
 conteo = 0
 with revit.Transaction("Transferencia COBie Type Optimizada"):
     for type_id, element_type in element_types.items():
+        
+        # ==== Obtenemos la categoria del elemento de tipo ====
+        category_object = element_type.Category
+        category_name = category_object.Name
+        
+        # ==== Obtenemos el nombre de la familia del elemento ====
+        if isinstance(element_type, ElementType):
+            fam_name = element_type.FamilyName
+        
+        # ==== Obtenemos el tipo del elemento seleccionado ====
+        object_param_name = GetParameterAPI(element_type, BuiltInParameter.SYMBOL_NAME_PARAM)
+        if object_param_name:
+            param_name_value = object_param_name.AsString()
+        
+        # ==== el parametro Descripción ====
+        object_param_desc = getParameter(element_type, "Descripción")
+        if object_param_desc:
+            param_desc_value = object_param_desc.AsString()
+        
         param_cobie_type = getParameter(element_type, "COBie.Type")
         if not (param_cobie_type and param_cobie_type.StorageType == StorageType.Integer and param_cobie_type.AsInteger() == 1):
             continue
-
+        
         conteo += 1
 
         param_code = GetParameterAPI(element_type, BuiltInParameter.UNIFORMAT_CODE, es_editable=True)
         param_name = GetParameterAPI(element_type, BuiltInParameter.ALL_MODEL_TYPE_NAME)
-        param_ss_number = getParameter(element_type, "Classification.Uniclass.Ss.Number")
-        param_ss_desc = getParameter(element_type, "Classification.Uniclass.Ss.Description")
+        param_pr_number = getParameter(element_type, "Classification.Uniclass.Pr.Number")
+        param_pr_desc = getParameter(element_type, "Classification.Uniclass.Pr.Description")
 
         parameters_shared = {
-            "COBie.Type.Name": "{}_{}".format(
-                param_code.AsString() if param_code else "",
-                param_name.AsString() if param_name else ""
+            "COBie.Type.Name": "{} : {} : {}".format(
+                category_name,
+                fam_name,
+                param_name_value
             ),
-            "COBie.Type.Category": "{} {}".format(
-                param_ss_number.AsString() if param_ss_number else "",
-                param_ss_desc.AsString() if param_ss_desc else ""
+            "COBie.Type.Category": "{} : {}".format(
+                param_pr_number.AsString() if param_pr_number else "",
+                param_pr_desc.AsString() if param_pr_desc else ""
             ),
             "COBie.Type.Description": "{}".format(
-                param_name.AsString() if param_name else ""
+                param_desc_value
             )
         }
 

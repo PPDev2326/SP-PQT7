@@ -9,16 +9,22 @@ class Specialty(object):
     Clase que representa una especialidad de construccion
     """
     
-    def __init__(self, name=None, suffix=None):
+    def __init__(self, name=None, suffix=None, access_performance = None, code_performance = None, sustainability = None):
         """
         Inicializa una nueva instancia de Specialty
         
         Args:
             name (str): Nombre de la especialidad
             suffix (str): Sufijo de la especialidad
+            access_performance (str): accesibilidad de la especialidad
+            code_performance (str): Reglamento de la especialidad
+            sustainability (str): sostenibilidad de la especialidad
         """
         self.name = name
         self.suffix = suffix
+        self.accessibility_performance = access_performance
+        self.code_perfomance = code_performance
+        self.sustainability = sustainability
     
     def __str__(self):
         """

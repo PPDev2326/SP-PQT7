@@ -25,7 +25,7 @@ from Autodesk.Revit.DB import (
 from collections import defaultdict
 from Extensions._RevitAPI import GetParameterAPI, getParameter, get_param_value
 from Extensions._Modulo import obtener_nombre_archivo, validar_nombre
-from Helper._Rooms import get_formatted_string, find_mapped_number, ROOM_NAME_MAPPING
+from Helper._Dictionary import get_formatted_string, find_mapped_number, ROOM_NAME_MAPPING
 
 output = script.get_output()
 

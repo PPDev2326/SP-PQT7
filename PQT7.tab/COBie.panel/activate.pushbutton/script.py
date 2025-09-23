@@ -61,17 +61,19 @@ def compute_value(code, sin_cobie_set, con_cobie_set, activate):
 if not validar_nombre(obtener_nombre_archivo()):
     script.exit()
 
-# TaskDialog más simple y intuitivo
+# TaskDialog más intuitivo con mensaje claro
 result = TaskDialog.Show(
     "COBie Manager",
-    "Selecciona la acción:",
+    "¿Qué acción deseas realizar?\n\nYES = ACTIVAR COBie (valor 1)\nNO = DESACTIVAR COBie (valor 0)",
     TaskDialogCommonButtons.Yes | TaskDialogCommonButtons.No
 )
 
 if result == TaskDialogResult.Yes:
     modo_activar = True
+    print("=== MODO: ACTIVAR COBie ===")
 elif result == TaskDialogResult.No:
     modo_activar = False
+    print("=== MODO: DESACTIVAR COBie ===")
 else:
     script.exit()
 
@@ -79,14 +81,32 @@ else:
 try:
     ui_doc = revit.uidoc
     doc = revit.doc
+    print("Seleccionando elementos...")
     refs = ui_doc.Selection.PickObjects(ObjectType.Element)
-    sin_cobie, con_cobie = leer_excel_filtrado()
+    print("Elementos seleccionados: {}".format(len(refs)))
+    
+    # Solo leer Excel si se va a ACTIVAR COBie
+    if modo_activar:
+        print("Cargando datos del archivo Excel...")
+        sin_cobie, con_cobie = leer_excel_filtrado()
+        print("Codigos sin COBie: {}".format(len(sin_cobie)))
+        print("Codigos con COBie: {}".format(len(con_cobie)))
+    else:
+        print("Modo DESACTIVAR: omitiendo lectura de Excel")
+        sin_cobie, con_cobie = [], []
+        
 except OperationCanceledException:
+    print("Operacion cancelada por el usuario")
     script.exit()
 
 # Convertir listas a sets para búsquedas más rápidas
 sin_cobie_set = set(sin_cobie)
 con_cobie_set = set(con_cobie)
+
+# Obtener especialidad del documento
+specialty_obj = SpecialtiesRepository().get_specialty_by_document(doc)
+specialty_name = specialty_obj.name if specialty_obj else "No detectada"
+print("Especialidad del documento: {}".format(specialty_name))
 
 # Tracker de tipos procesados por código de partida
 processed_codes_types = {}
@@ -94,6 +114,8 @@ elementos_procesados = 0
 
 # Calcular total de elementos a procesar para la barra de progreso
 total_elementos = 0
+elementos_con_subcomponentes = 0
+
 for ref in refs:
     elem = doc.GetElement(ref)
     if elem and elem.Category:
@@ -102,9 +124,16 @@ for ref in refs:
             try:
                 sub_ids = elem.GetSubComponentIds()
                 if sub_ids:
-                    total_elementos += len([sid for sid in sub_ids if doc.GetElement(sid)])
+                    subcomponentes_validos = [sid for sid in sub_ids if doc.GetElement(sid)]
+                    if subcomponentes_validos:
+                        elementos_con_subcomponentes += 1
+                        total_elementos += len(subcomponentes_validos)
             except:
                 pass
+
+print("Total elementos a procesar: {}".format(total_elementos))
+print("Elementos principales con subcomponentes: {}".format(elementos_con_subcomponentes))
+print("\n=== INICIANDO PROCESAMIENTO ===")
 
 # Ejecutar transacción general con barra de progreso
 with revit.Transaction("Toggle COBieType & COBie Component"):
@@ -172,3 +201,13 @@ TaskDialog.Show(
     "Modo aplicado: {}".format("ACTIVAR" if modo_activar else "DESACTIVAR"),
     TaskDialogCommonButtons.Ok
 )
+
+print("\n=== RESUMEN FINAL ===")
+print("Elementos procesados: {}".format(elementos_procesados))
+print("Codigos unicos de partida: {}".format(len(processed_codes_types)))
+print("Modo aplicado: {}".format("ACTIVAR" if modo_activar else "DESACTIVAR"))
+print("Especialidad: {}".format(specialty_name))
+if modo_activar:
+    print("Codigos activados (valor 1): {}".format(len(con_cobie)))
+    print("Codigos desactivados (valor 0): {}".format(len(sin_cobie)))
+print("¡Proceso completado exitosamente!")

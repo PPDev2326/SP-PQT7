@@ -8,17 +8,43 @@ from Autodesk.Revit.UI.Selection import ObjectType
 from Autodesk.Revit.Exceptions import OperationCanceledException
 from Extensions._Modulo import obtener_nombre_archivo, validar_nombre
 from Extensions._Ignore import leer_excel_filtrado
+from DBRepositories.SpecialtiesRepository import SpecialtiesRepository
 
 def set_param(param, val):
     """Establece un valor entero en el parámetro si es modificable."""
     if param and not param.IsReadOnly and param.StorageType == StorageType.Integer:
         param.Set(val)
 
-def get_codigo_partida(elemento):
-    """Obtiene el código de partida del elemento de instancia."""
-    param = elemento.LookupParameter("S&P_CODIGO PARTIDA N°1")
-    if param and param.HasValue:
-        return param.AsString()
+def get_codigo_partida(elemento, documento):
+    """
+    Obtiene el código de partida del elemento según especialidad.
+    Para INSTALACIONES ELECTRICAS/COMUNICACIONES: prioriza N°2, fallback a N°1.
+    Otras especialidades: usa N°1. Retorna None si está vacío.
+    """
+    specialty = SpecialtiesRepository().get_specialty_by_document(documento)
+    
+    if specialty in ["INSTALACIONES ELECTRICAS", "COMUNICACIONES"]:
+        # Intentar primero con CODIGO PARTIDA N°2
+        param_n2 = elemento.LookupParameter("S&P_CODIGO PARTIDA N°2")
+        if param_n2 and param_n2.HasValue:
+            valor_n2 = param_n2.AsString()
+            if valor_n2 and valor_n2.strip():  # Verificar que no sea vacío o solo espacios
+                return valor_n2.strip()
+        
+        # Fallback a N°1 si N°2 no está disponible o está vacío
+        param_n1 = elemento.LookupParameter("S&P_CODIGO PARTIDA N°1")
+        if param_n1 and param_n1.HasValue:
+            valor_n1 = param_n1.AsString()
+            if valor_n1 and valor_n1.strip():
+                return valor_n1.strip()
+    else:
+        # Para otras especialidades, usar directamente N°1
+        param_n1 = elemento.LookupParameter("S&P_CODIGO PARTIDA N°1")
+        if param_n1 and param_n1.HasValue:
+            valor_n1 = param_n1.AsString()
+            if valor_n1 and valor_n1.strip():
+                return valor_n1.strip()
+    
     return None
 
 def compute_value(code, sin_cobie_set, con_cobie_set, activate):
@@ -95,7 +121,7 @@ with revit.Transaction("Toggle COBieType & COBie Component"):
                 continue
 
             # Obtener código de partida del elemento de instancia
-            code = get_codigo_partida(el)
+            code = get_codigo_partida(el, doc)
             
             # Calcular valor según lógica COBie
             v = compute_value(code, sin_cobie_set, con_cobie_set, modo_activar)

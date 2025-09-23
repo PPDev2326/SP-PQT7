@@ -1,12 +1,21 @@
 # -*- coding: utf-8 -*-
 __title__ = "COBie Space"
-__doc__ = """Version = 1.4
-Date = 06.05.2025
+__doc__ = """
+Version = 1.1
+Date = 23.09.2025
 ------------------------------------------------------------------
 Description:
-Transfiere datos Space y Room a parámetros COBie con feedback en consola.
+Llenara los parametros del COBieSpace.
 ------------------------------------------------------------------
-Author: Paolo Perez"""
+¿Cómo hacerlo?
+-> Click en el boton.
+-> Esperamos que se complete la actualizacion de información.
+------------------------------------------------------------------
+Última actualización:
+- [23.09.2025] - 1.1 UPDATE - New Feature
+------------------------------------------------------------------
+Autor: Paolo Perez
+"""
 
 from pyrevit import forms, script, revit
 from Autodesk.Revit.DB import (

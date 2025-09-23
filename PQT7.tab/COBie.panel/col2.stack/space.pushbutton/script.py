@@ -88,8 +88,8 @@ with revit.Transaction("Transfiere datos a Parametros COBieSpace"):
         
         value_room_name = get_param_value(room_param_name, "Sin nombre")
         value_room_number = get_param_value(room_param_number, "Sin numero")
-        value_cl_description = (cl_param_description.AsString().strip() if cl_param_description else "") or "Sin descripcion"
-        value_cl_number = (cl_param_number.AsString().strip() if cl_param_number else "") or "Sin número"
+        value_cl_description = get_param_value(cl_param_description, "Sin nombre")
+        value_cl_number = get_param_value(cl_param_number, "Sin nombre")
         name_full = get_formatted_string(value_room_number, value_room_name)
         categoria = get_formatted_string(value_cl_number, value_cl_description)
         room_tag = find_mapped_number(name_full)

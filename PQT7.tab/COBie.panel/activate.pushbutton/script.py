@@ -1,5 +1,24 @@
 # -*- coding: utf-8 -*-
 __title__ = "On/Off COBie"
+__doc__ = """
+Version = 1.1
+Date = 22.09.2025
+------------------------------------------------------------------
+Description:
+Mediante una matriz excel nos activara el parametro de COBie y COBieType.
+------------------------------------------------------------------
+¿Cómo hacerlo?
+-> Click en el boton
+-> Elegir entre 'SI' y 'NO' segun cada usuario
+-> Seleccionamos los elementos de la vista
+-> Click en finalizar en la parte superior
+-> Elegimos matriz Excel COBie
+------------------------------------------------------------------
+Última actualización:
+- [22.09.2025] - 1.1 UPDATE - New Feature
+------------------------------------------------------------------
+Autor: Paolo Perez
+"""
 
 from pyrevit import forms, revit, script
 from Autodesk.Revit.DB import StorageType, FamilyInstance

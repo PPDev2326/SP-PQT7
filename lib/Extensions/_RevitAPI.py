@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from Autodesk.Revit.DB import BuiltInParameter, Element
+from Autodesk.Revit.DB import BuiltInParameter, Element, StorageType
 
 def getParameter(element, name):
     """Obtiene un parametro compartido si no es de solo lectura.
@@ -25,23 +25,36 @@ def SetParameter(parameter, new_value):
             print("Error al setear el parametro: ", e)
     return False
 
-def GetParameterAPI(element, built_param, es_editable = False):
+def GetParameterAPI(element, built_param):
     """
     Obtiene un parámetro usando BuiltInParameter.
     
     :param element: Elemento de Revit (instancia, tipo, etc.).
     :param built_param: Constante BuiltInParameter (por ejemplo, BuiltInParameter.ROOM_NAME).
-    :param solo_si_es_editable: Si True, solo devuelve el parámetro si se puede editar.
     :return: Parámetro si existe (y editable si se pide), o None.
     """
     if element is None or built_param is None:
         return None
     try:
-        param_api = element.get_Parameter(built_param)
-        if param_api:
-            if es_editable and param_api.IsReadOnly:
-                return None
-            return param_api
+        return element.get_Parameter(built_param)
+    
     except Exception as e:
         print("Error al obtener el parámetro por BuiltInParameter:", e)
     return None
+
+def get_param_value(param, default=None):
+    """Devuelve el valor del parámetro según su tipo, o default si no existe."""
+    if not param:
+        return default
+    try:
+        if param.StorageType == StorageType.String:
+            return (param.AsString() or "").strip()
+        elif param.StorageType == StorageType.Double:
+            return param.AsDouble()
+        elif param.StorageType == StorageType.Integer:
+            return param.AsInteger()
+        elif param.StorageType == StorageType.ElementId:
+            return param.AsElementId()
+        return default
+    except:
+        return default

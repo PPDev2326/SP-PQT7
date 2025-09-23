@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 __title__ = "COBie Space"
-__doc__ = """Version = 1.3
+__doc__ = """Version = 1.4
 Date = 06.05.2025
 ------------------------------------------------------------------
 Description:
-Transfiere datos Space y Room a parámetros COBie.
+Transfiere datos Space y Room a parámetros COBie con feedback en consola.
 ------------------------------------------------------------------
 Author: Paolo Perez"""
 
@@ -14,35 +14,41 @@ from Autodesk.Revit.DB import (
     BuiltInParameter
 )
 from collections import defaultdict
+from Extensions._RevitAPI import GetParameterAPI, getParameter, get_param_value
 from Extensions._Modulo import obtener_nombre_archivo, validar_nombre
-from Extensions._Nombre import (
-    obtener_nombre_corto, generar_abreviacion,
-    obtener_nombre_base_para_contador,
-    capitalizar_respetando_mayusculas
-)
+from Helper._Rooms import get_formatted_string, find_mapped_number
 
-def set_param(param, valor):
-    if param and not param.IsReadOnly:
-        try:
-            param.Set(valor)
-        except Exception:
-            pass
+output = script.get_output()
+
+def set_param(param, valor, elemento, nombre_param):
+    """Setea un parámetro y devuelve True si fue exitoso."""
+    if not param:
+        output.print_md("⚠️ No se encontró el parámetro **{}** en el elemento `{}`".format(
+            nombre_param, elemento.Id.IntegerValue))
+        return False
+    if param.IsReadOnly:
+        output.print_md("🔒 El parámetro **{}** es de solo lectura en el elemento `{}`".format(
+            param.Definition.Name, elemento.Id.IntegerValue))
+        return False
+    try:
+        param.Set(valor)
+        output.print_md("✅ Asignado **{} = {}** al elemento `{}`".format(
+            nombre_param, valor, elemento.Id.IntegerValue))
+        return True
+    except Exception as e:
+        output.print_md("❌ Error al asignar **{}** en el elemento `{}`: {}".format(
+            nombre_param, elemento.Id.IntegerValue, e))
+        return False
 
 nombre_archivo = obtener_nombre_archivo()
 if not validar_nombre(nombre_archivo):
     script.exit()
 
-doc = __revit__.ActiveUIDocument.Document
+doc = revit.doc
 
 # Datos del usuario
-correo = "pruiz@cgeb.com.pe"
-fecha = "2025-04-18T16:45:10"
-categoria = forms.ask_for_one_item(
-    ["SL_50_20 Categoria ejemplo", "SL_25_10 Educational spaces"],
-    default="SL_50_20 Categoria ejemplo",
-    prompt="Seleccione una categoria Uniclass",
-    title="Agregar a COBie.Space.Category"
-)
+CORREO = "jtiburcio@syp.com.pe"
+FECHA = "2023-04-07T16:38:56"
 
 # Obtener Rooms y Spaces
 spaces = list(
@@ -60,37 +66,47 @@ rooms = list(
 )
 
 elementos = spaces + rooms
-
+output.print_md("### 🔍 Iniciando transferencia COBie")
+output.print_md("- Rooms encontrados: **{}**".format(len(rooms)))
+output.print_md("- Spaces encontrados: **{}**".format(len(spaces)))
+output.print_md("- Total de elementos a procesar: **{}**".format(len(elementos)))
 
 abreviaciones = defaultdict(int)
+asignados_ok = 0
+asignados_fail = 0
 
 with revit.Transaction("Transfiere datos a Parametros COBieSpace"):
     for i, elemento in enumerate(elementos, start=1):
-        name_param = elemento.get_Parameter(BuiltInParameter.ROOM_NAME)
-        if not name_param:
-            continue
+        output.print_md("---")
+        output.print_md("➡️ Procesando elemento `{}` ({}/{})".format(
+            elemento.Id.IntegerValue, i, len(elementos)))
 
-        name = name_param.AsString() or ""
-        name_cap = capitalizar_respetando_mayusculas(name)
-        name_full = "{:02}_{}".format(i, name_cap)
-        nombre_corto = obtener_nombre_corto(name)
-        nombre_base = obtener_nombre_base_para_contador(nombre_corto)
-        abreviaciones[nombre_base] += 1
-        abreviacion = generar_abreviacion(nombre_base, abreviaciones[nombre_base])
+        room_param_name = GetParameterAPI(elemento, BuiltInParameter.ROOM_NAME)
+        room_param_number = GetParameterAPI(elemento, BuiltInParameter.ROOM_NUMBER)
+        cl_param_description = getParameter(elemento, "Classification.Space.Description")
+        cl_param_number = getParameter(elemento, "Classification.Space.Number")
+        
+        value_room_name = get_param_value(room_param_name, "Sin nombre")
+        value_room_number = get_param_value(room_param_number, "Sin numero")
+        value_cl_description = (cl_param_description.AsString().strip() if cl_param_description else "") or "Sin descripcion"
+        value_cl_number = (cl_param_number.AsString().strip() if cl_param_number else "") or "Sin número"
+        name_full = get_formatted_string(value_room_number, value_room_name)
+        categoria = get_formatted_string(value_cl_number, value_cl_description)
+        room_tag = find_mapped_number(name_full)
 
-        height = elemento.get_Parameter(BuiltInParameter.ROOM_HEIGHT)
-        area = elemento.get_Parameter(BuiltInParameter.ROOM_AREA)
+        height = GetParameterAPI(elemento, BuiltInParameter.ROOM_HEIGHT)
+        area = GetParameterAPI(elemento, BuiltInParameter.ROOM_AREA)
 
-        height_val = height.AsDouble() if height else 0
-        area_val = area.AsDouble() if area else 0
+        height_val = get_param_value(height, 0)
+        area_val = get_param_value(area, 0)
 
         parametros = {
             "COBie.Space.Name": name_full,
-            "COBie.CreatedBy": correo,
-            "COBie.CreatedOn": fecha,
+            "COBie.CreatedBy": CORREO,
+            "COBie.CreatedOn": FECHA,
             "COBie.Space.Category": categoria,
-            "COBie.Space.Description": nombre_corto,
-            "COBie.Space.RoomTag": abreviacion,
+            "COBie.Space.Description": value_room_name,
+            "COBie.Space.RoomTag": room_tag,
             "COBie.Space.UsableHeight": height_val,
             "COBie.Space.GrossArea": area_val,
             "COBie.Space.NetArea": area_val,
@@ -98,4 +114,14 @@ with revit.Transaction("Transfiere datos a Parametros COBieSpace"):
         }
 
         for nombre_param, valor in parametros.items():
-            set_param(elemento.LookupParameter(nombre_param), valor)
+            if set_param(elemento.LookupParameter(nombre_param), valor, elemento, nombre_param):
+                asignados_ok += 1
+            else:
+                asignados_fail += 1
+
+output.print_md("---")
+output.print_md("### 📊 Resumen final")
+output.print_md("- Total elementos procesados: **{}**".format(len(elementos)))
+output.print_md("- Parámetros asignados correctamente: **{}**".format(asignados_ok))
+output.print_md("- Parámetros con error: **{}**".format(asignados_fail))
+output.print_md("✅ Proceso finalizado.")

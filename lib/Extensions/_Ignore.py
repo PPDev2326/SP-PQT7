@@ -40,7 +40,7 @@ def leer_excel_filtrado():
         forms.alert("No se seleccionó ningún archivo.", exitscript=True)
         return []
     
-    datos = xl.load(ruta, sheets="Datos", headers=False)
+    datos = xl.load(ruta, sheets="ELEMENTOS", headers=False)
     filas = datos.get('ELEMENTOS', {}).get('rows', [])
     
     if len(filas) < 8:

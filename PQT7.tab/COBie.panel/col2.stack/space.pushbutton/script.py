@@ -25,7 +25,7 @@ from Autodesk.Revit.DB import (
 from collections import defaultdict
 from Extensions._RevitAPI import GetParameterAPI, getParameter, get_param_value
 from Extensions._Modulo import obtener_nombre_archivo, validar_nombre
-from Helper._Rooms import get_formatted_string, find_mapped_number
+from Helper._Rooms import get_formatted_string, find_mapped_number, ROOM_NAME_MAPPING
 
 output = script.get_output()
 
@@ -83,6 +83,8 @@ output.print_md("- Total de elementos a procesar: **{}**".format(len(elementos))
 abreviaciones = defaultdict(int)
 asignados_ok = 0
 asignados_fail = 0
+elementos_procesados = 0
+elementos_omitidos = 0
 
 with revit.Transaction("Transfiere datos a Parametros COBieSpace"):
     for i, elemento in enumerate(elementos, start=1):
@@ -100,37 +102,48 @@ with revit.Transaction("Transfiere datos a Parametros COBieSpace"):
         value_cl_description = get_param_value(cl_param_description, "Sin nombre")
         value_cl_number = get_param_value(cl_param_number, "Sin nombre")
         name_full = get_formatted_string(value_room_number, value_room_name)
-        categoria = get_formatted_string(value_cl_number, value_cl_description)
-        room_tag = find_mapped_number(name_full)
+        
+        # CORRECCIÓN: Buscar en las claves del diccionario, no en los valores
+        if name_full in ROOM_NAME_MAPPING:  # o alternativamente: if name_full in ROOM_NAME_MAPPING.keys():
+            elementos_procesados += 1
+            output.print_md("✅ Elemento encontrado en mapping: **{}**".format(name_full))
+            
+            categoria = get_formatted_string(value_cl_number, value_cl_description)
+            room_tag = find_mapped_number(name_full)
 
-        height = GetParameterAPI(elemento, BuiltInParameter.ROOM_HEIGHT)
-        area = GetParameterAPI(elemento, BuiltInParameter.ROOM_AREA)
+            height = GetParameterAPI(elemento, BuiltInParameter.ROOM_HEIGHT)
+            area = GetParameterAPI(elemento, BuiltInParameter.ROOM_AREA)
 
-        height_val = get_param_value(height, 0)
-        area_val = get_param_value(area, 0)
+            height_val = get_param_value(height, 0)
+            area_val = get_param_value(area, 0)
 
-        parametros = {
-            "COBie.Space.Name": name_full,
-            "COBie.CreatedBy": CORREO,
-            "COBie.CreatedOn": FECHA,
-            "COBie.Space.Category": categoria,
-            "COBie.Space.Description": value_room_name,
-            "COBie.Space.RoomTag": room_tag,
-            "COBie.Space.UsableHeight": height_val,
-            "COBie.Space.GrossArea": area_val,
-            "COBie.Space.NetArea": area_val,
-            "COBie": 1,
-        }
+            parametros = {
+                "COBie.Space.Name": name_full,
+                "COBie.CreatedBy": CORREO,
+                "COBie.CreatedOn": FECHA,
+                "COBie.Space.Category": categoria,
+                "COBie.Space.Description": value_room_name,
+                "COBie.Space.RoomTag": room_tag,
+                "COBie.Space.UsableHeight": height_val,
+                "COBie.Space.GrossArea": area_val,
+                "COBie.Space.NetArea": area_val,
+                "COBie": 1,
+            }
 
-        for nombre_param, valor in parametros.items():
-            if set_param(elemento.LookupParameter(nombre_param), valor, elemento, nombre_param):
-                asignados_ok += 1
-            else:
-                asignados_fail += 1
+            for nombre_param, valor in parametros.items():
+                if set_param(elemento.LookupParameter(nombre_param), valor, elemento, nombre_param):
+                    asignados_ok += 1
+                else:
+                    asignados_fail += 1
+        else:
+            elementos_omitidos += 1
+            output.print_md("⚠️ Elemento omitido (no encontrado en mapping): **{}**".format(name_full))
 
 output.print_md("---")
 output.print_md("### 📊 Resumen final")
-output.print_md("- Total elementos procesados: **{}**".format(len(elementos)))
+output.print_md("- Total elementos analizados: **{}**".format(len(elementos)))
+output.print_md("- Elementos procesados (con mapping): **{}**".format(elementos_procesados))
+output.print_md("- Elementos omitidos (sin mapping): **{}**".format(elementos_omitidos))
 output.print_md("- Parámetros asignados correctamente: **{}**".format(asignados_ok))
 output.print_md("- Parámetros con error: **{}**".format(asignados_fail))
 output.print_md("✅ Proceso finalizado.")

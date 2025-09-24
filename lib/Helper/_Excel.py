@@ -24,8 +24,7 @@ class Excel:
         try:
             datos = xl.load(ruta, sheets=hoja, headers=encabezados)
         except Exception as e:
-            forms.alert("Error al cargar Excel.\nTipo de excepción: {}\nDetalle: {}".format(
-                type(e).__name__, str(e)), exitscript=True)
+            forms.alert("Tipo devuelto: {}\nDir: {}".format(type(datos), dir(datos)))
             return []
 
         filas = datos.get(hoja, {}).get('rows', [])

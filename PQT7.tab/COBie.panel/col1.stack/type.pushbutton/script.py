@@ -7,7 +7,6 @@ from pyrevit import script, revit
 from Extensions._RevitAPI import getParameter, GetParameterAPI, SetParameter
 from DBRepositories.SpecialtiesRepository import SpecialtiesRepository
 from DBRepositories.SchoolRepository import ColegiosRepository
-from Helper._Dictionary import get_formatted_string
 
 uidoc = revit.uidoc
 doc = revit.doc

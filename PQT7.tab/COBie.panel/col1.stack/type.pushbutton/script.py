@@ -28,7 +28,8 @@ uidoc = revit.uidoc
 doc = revit.doc
 
 # ==== Obtenemos la especialidad del modelo activo y sus datos ====
-specialty_object = SpecialtiesRepository().get_specialty_by_document(doc)
+repo_specialties = SpecialtiesRepository()
+specialty_object = repo_specialties.get_specialty_by_document(doc)
 specialty = None
 sp_accesibility = None
 sp_code = None
@@ -43,7 +44,8 @@ if specialty_object:
     sp_feature = specialty_object.feature
 
 # ==== Obtenemos el colegio correspondiente segun modelo y sus datos necesarios ====
-school_object = ColegiosRepository.codigo_colegio(doc)
+repo_schools = ColegiosRepository()
+school_object = repo_schools.codigo_colegio(doc)
 school = None
 created_by_value = None
 warranty_description_value = None

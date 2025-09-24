@@ -20,14 +20,16 @@ class Excel:
         if not ruta:
             forms.alert("No se seleccionó ningún archivo.", exitscript=True)
             return []
-
-        try:
-            datos = xl.load(ruta, sheets=hoja, headers=encabezados)
-        except Exception as e:
-            forms.alert("Tipo devuelto: {}\nDir: {}".format(type(datos), dir(datos)))
-            return []
-
-        filas = datos.get(hoja, {}).get('rows', [])
+        
+        datos = xl.load(ruta, sheets=hoja, headers=encabezados)
+        
+        if isinstance(datos, dict):
+            # caso normal
+            filas = datos.get(hoja, {}).get('rows', [])
+        else:
+            # caso wrapper
+            filas = datos.rows if hasattr(datos, "rows") else []
+        
         return filas
     
     def get_headers(rows, start_row = 0):

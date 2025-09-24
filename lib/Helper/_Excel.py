@@ -20,11 +20,12 @@ class Excel:
         if not ruta:
             forms.alert("No se seleccionó ningún archivo.", exitscript=True)
             return []
+        try:
+            datos = xl.load(ruta, sheets=hoja, headers=encabezados)
         
-        datos = xl.load(ruta, sheets=hoja, headers=encabezados)
-        
-        if not datos:
-            forms.alert(str(type(datos)))
+                
+        except Exception as e:
+            forms.alert("el tipo es: {} y su excepcion: {}".format(str(type(datos))), e)
         
         filas = datos.get(hoja, {}).get('rows', [])
         

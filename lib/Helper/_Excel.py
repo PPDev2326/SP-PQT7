@@ -23,7 +23,8 @@ class Excel:
         
         datos = xl.load(ruta, sheets=hoja, headers=encabezados)
         
-        forms.alert(str(type(datos)))
+        if not datos:
+            forms.alert(str(type(datos)))
         
         filas = datos.get(hoja, {}).get('rows', [])
         

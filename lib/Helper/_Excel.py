@@ -8,13 +8,13 @@ class Excel:
     def read_excel(hoja, encabezados=False):
         """
         Lee un archivo Excel.
-        
-        Args:
-            hoja (str): Nombre de la hoja. Si es None, selecciona automáticamente
-            encabezados (bool): Si True, trata la primera fila como encabezados
-        
-        Returns:
-            list: Filas del Excel
+
+        :param hoja: El nombre de la hoja de cálculo.
+        :type hoja: str
+        :param encabezados: Si es True, la primera fila se trata como encabezados.
+        :type encabezados: bool, optional
+        :return: Las filas del Excel.
+        :rtype: list
         """
         ruta = forms.pick_excel_file()
         if not ruta:
@@ -26,52 +26,88 @@ class Excel:
         
         return filas
     
-    def get_headers(rows, required_column, start_row, max_row_send=2):
+    def get_headers(rows, start_row = 0):
         """
         Busca los encabezados en las filas y retorna los índices de las columnas.
         
         Args:
             row (list): Lista de filas del Excel
             required_column (dict): Diccionario con nombres lógicos y posibles nombres de columnas
-                Ejemplo: {
-                    'item': ['Item', 'Elemento', 'Name'],
-                    'specialty': ['Specialty', 'Especialidad', 'Type'], 
-                    'cobie': ['COBie Requirement', 'COBie', 'Required']
-                }
             start_row (int): Fila desde donde empezar a buscar encabezados (default: 0)
             max_row_send (int): Máximo número de filas a revisar (default: 2)
         
         Returns:
-            dict: Diccionario con los índices de las columnas encontradas
-                Ejemplo: {'item': 0, 'specialty': 1, 'cobie': 8, 'header_row': 4}
-                Si no encuentra alguna columna, su valor será None
+            dict: Diccionario con los índices de las columnas encontradas con valor.
         """
-        if required_column is None:
-            required_column = {
-                'item': ['Item', 'Elemento', 'Name', 'Nombre'],
-                'specialty': ['Specialty', 'Especialidad', 'Type', 'Tipo'],
-                'cobie': ['COBie Requirement', 'COBie', 'Required', 'Requerido']
-            }
-        if not rows:
-            forms.alert("No hay filas para procesar.", exitscript=True)
+        if len(rows) <= start_row:
+            forms.alert("El archivo no tiene suficientes filas para contener encabezados en la fila {}.".format(start_row + 1), exitscript=True)
             return {}
+
+        headers = rows[start_row]
+        headers_dict = {}
         
-        # Buscar la fila de encabezados
-        encabezados = None
-        header_row_index = None
+        for idx ,h in enumerate(headers):
+            if h not in ("", None):         # => Ignoramos celdas vacias
+                headers_dict[idx] = h
+        return headers_dict
+    
+    def headers_required(headers, columns_name):
+        """
+        Filtra los encabezados encontrados y retorna solo los que están en columns_name.
         
-        max_filas = min(len(rows), start_row + max_row_send)
+        Args:
+            headers (dict): Diccionario {indice: nombre_columna}
+            columns_name (list): Lista de nombres de columnas requeridas
         
-        for i in range(start_row, max_filas):
-            fila = rows[i]
-            if not fila:
-                continue
+        Returns:
+            dict: Diccionario existente {nombre_columna: indice}. Si alguna falta → None
+        """
         
-        encabezados = rows[4]  # Fila 3 en Excel (índice 4)
-        try:
-            col_espe = encabezados.index("Specialty")               # Columna B
-            col_descri = encabezados.index("COBie Requirement")     # Columna I
-            col_item = encabezados.index("Item")                    # Columna A
-        except ValueError:
-            forms.alert("No se encontraron las columnas necesarias: 'Especialidad', 'COBie', 'NRM 1'.", exitscript=True)
-            return []
+        found = {}
+        for col in columns_name:
+            idx = None
+            for i, h in headers.items():
+                if h == col:
+                    idx = i
+                    break
+            found[col] = idx
+        return found
+    
+    def get_data_by_headers_required(rows_data, columns_required, start_data=1):
+        """
+        Obtiene los datos del Excel basados en los encabezados requeridos.
+        
+        Args:
+            rows_data (list): Filas del Excel
+            columns_required (dict): Diccionario {nombre_columna: índice}
+            start_data (int): Fila desde donde empiezan los datos (default: 1)
+        
+        Returns:
+            list: Lista de dicts, cada fila con sus columnas requeridas
+        """
+        data = []
+        for r in rows_data[start_data:]:
+            row_dict = {}
+            for col_name, idx in columns_required.items():
+                if idx is not None and idx < len(r):
+                    row_dict[col_name] = r[idx]
+                else:
+                    row_dict[col_name] = None
+            data.append(row_dict)
+        return data
+
+
+# required_column = {
+#                 "COBie.Type.Manufacturer": None,
+#                 "COBie.Type.ModelNumber": None,
+#                 "COBie.Type.WarrantyDurationParts": None,
+#                 "COBie.Type.WarrantyDurationLabor": None,
+#                 "COBie.Type.ReplacementCost": None,               # Varia de acuerdo al excel
+#                 "COBie.Type.ExpectedLife": None,
+#                 "COBie.Type.NominalLength": None,
+#                 "COBie.Type.NominalWidth": None,
+#                 "COBie.Type.NominalHeight": None,
+#                 "COBie.Type.Color": None,
+#                 "COBie.Type.Finish": None,
+#                 "COBie.Type.Constituents": None
+#             }

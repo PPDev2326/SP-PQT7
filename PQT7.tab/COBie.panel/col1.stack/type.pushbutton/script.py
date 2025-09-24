@@ -8,6 +8,23 @@ from pyrevit import script, revit, forms
 from Extensions._RevitAPI import getParameter, GetParameterAPI, SetParameter
 from DBRepositories.SpecialtiesRepository import SpecialtiesRepository
 from DBRepositories.SchoolRepository import ColegiosRepository
+from Helper._Excel import Excel
+
+parametros_cobie = [
+        "COBie.Type.Manufacturer",
+        "COBie.Type.ModelNumber", 
+        "COBie.Type.WarrantyDurationParts",
+        "COBie.Type.WarrantyDurationLabor",
+        "COBie.Type.ReplacementCost",
+        "COBie.Type.ExpectedLife",
+        "COBie.Type.NominalLength",
+        "COBie.Type.NominalWidth",
+        "COBie.Type.NominalHeight",
+        "COBie.Type.Color",
+        "COBie.Type.Finish",
+        "COBie.Type.Constituents",
+        "CODIGO"  # Columna identificadora
+    ]
 
 def extraer_medida(tipo_name):
     """
@@ -42,6 +59,10 @@ if specialty_object:
     sp_code = specialty_object.code_perfomance
     sp_sustainability = specialty_object.sustainability
     sp_feature = specialty_object.feature
+
+# ==== Obtenemos la hoja excel de acuerdo a la especialidad ====
+if specialty == "ARQUITECTURA":
+    excel = Excel().read_excel("ESTANDAR COBIE  -AR")
 
 # ==== Obtenemos el colegio correspondiente segun modelo y sus datos necesarios ====
 repo_schools = ColegiosRepository()

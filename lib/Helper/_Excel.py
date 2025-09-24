@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from Autodesk.Revit.DB import BuiltInCategory
-from pyrevit import forms, revit, script
+from pyrevit import forms
 from pyrevit.interop import xl
 
 class Excel:
@@ -23,9 +23,7 @@ class Excel:
         
         datos = xl.load(ruta, sheets=hoja, headers=encabezados)
         
-        output = script.get_output()
-        print(type(datos))                    # Puede salir o no
-        output.print_md("**Tipo:** {}".format(type(datos)))
+        forms.alert(str(type(datos)))
         
         filas = datos.get(hoja, {}).get('rows', [])
         

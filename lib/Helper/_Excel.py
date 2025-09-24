@@ -22,6 +22,7 @@ class Excel:
             return []
         
         datos = xl.load(ruta, sheets=hoja, headers=encabezados)
+        print(type(datos))
         filas = datos.get(hoja, {}).get('rows', [])
         
         return filas

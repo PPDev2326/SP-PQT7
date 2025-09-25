@@ -22,6 +22,7 @@ class Excel:
             return []
         
         datos = xl.load(ruta, sheets=str(hoja), headers=encabezados)
+        forms.alert("Hojas encontradas:\n{}".format(list(datos.keys())))
         filas = datos.get(hoja, {}).get('rows', [])
         
         return filas

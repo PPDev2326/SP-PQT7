@@ -10,6 +10,9 @@ from DBRepositories.SpecialtiesRepository import SpecialtiesRepository
 from DBRepositories.SchoolRepository import ColegiosRepository
 from Helper._Excel import Excel
 
+# Importar ProgressBar
+from pyrevit.forms import ProgressBar
+
 parametros_cobie = [
         "COBie.Type.Manufacturer",
         "COBie.Type.ModelNumber", 
@@ -213,7 +216,8 @@ for element in selection:
         codigo_elemento = param_codigo.AsString()
     
     if not codigo_elemento or not codigo_elemento.strip():
-        print("Instancia {} no tiene código válido, se omite".format(element.Id))
+        # Solo imprimir si queremos debug detallado
+        # print("Instancia {} no tiene código válido, se omite".format(element.Id))
         continue
     
     # ==== Obtener el TIPO del elemento ====
@@ -263,11 +267,32 @@ conteo = 0
 elementos_omitidos = 0
 codigos_no_encontrados = []
 
-with revit.Transaction("Transferencia COBie Type con Excel"):
+# Preparar datos para transaction en masa
+elementos_a_procesar = []
+
+# Fase 1: Preparación de datos sin transaction
+print("Preparando datos para procesamiento en masa...")
+
+# ProgressBar para preparación
+with ProgressBar(title="Preparando elementos...", 
+                 cancellable=True, 
+                 step=10) as pb:
+    
+    current_step = 0
+    total_types = len(element_types_data)
+    
     for type_id, type_data in element_types_data.items():
         element_type = type_data["element_type"]
         codigo_elemento = type_data["codigo"]
         instancias = type_data["instancias"]
+        
+        # Actualizar progress bar
+        current_step += 1
+        if pb.cancelled:
+            forms.alert("Proceso cancelado por el usuario.", exitscript=True)
+        
+        pb.update_progress(current_step, total_types)
+        pb.update_title("Preparando: {} de {}".format(current_step, total_types))
         
         # Verificar si el elemento debe procesarse
         param_cobie_type = getParameter(element_type, "COBie.Type")
@@ -286,10 +311,7 @@ with revit.Transaction("Transferencia COBie Type con Excel"):
                 elementos_omitidos += 1
                 continue
             
-            print("Procesando tipo {} con código: {} ({} instancias)".format(
-                element_type.Id, codigo_elemento, len(instancias)))
-            
-            # ==== Obtener datos del elemento tipo ====
+            # ==== Preparar datos del elemento tipo ====
             category_object = element_type.Category
             category_name = category_object.Name if category_object else "Sin Categoría"
             
@@ -366,21 +388,64 @@ with revit.Transaction("Transferencia COBie Type con Excel"):
                     if valor_excel is not None:
                         parameters_shared[revit_param] = valor_excel
 
-            # ==== Aplicar todos los parámetros al TIPO ====
-            for param_name, value in parameters_shared.items():
-                if value is not None:
-                    try:
-                        param = getParameter(element_type, param_name)
-                        if param:
-                            SetParameter(param, value)
-                    except Exception as e:
-                        print("Error estableciendo parámetro {}: {}".format(param_name, str(e)))
-
-            conteo += 1
+            # Agregar elemento preparado a la lista
+            elementos_a_procesar.append({
+                "element_type": element_type,
+                "parameters": parameters_shared,
+                "codigo": codigo_elemento,
+                "instancias": len(instancias)
+            })
             
         except Exception as e:
-            print("Error procesando elemento tipo {}: {}".format(element_type.Id, str(e)))
+            print("Error preparando elemento tipo {}: {}".format(element_type.Id, str(e)))
             elementos_omitidos += 1
+
+print("Elementos preparados para procesamiento: {}".format(len(elementos_a_procesar)))
+
+# Fase 2: Transaction en masa para aplicar parámetros
+print("Iniciando transaction en masa...")
+
+with revit.Transaction("Transferencia COBie Type Masiva"):
+    with ProgressBar(title="Aplicando parámetros COBie...", 
+                     cancellable=True, 
+                     step=5) as pb:
+        
+        current_element = 0
+        total_elements = len(elementos_a_procesar)
+        
+        for elemento_data in elementos_a_procesar:
+            # Actualizar progress bar
+            current_element += 1
+            if pb.cancelled:
+                forms.alert("Proceso cancelado por el usuario. Elementos procesados hasta el momento: {}".format(conteo))
+                break
+            
+            pb.update_progress(current_element, total_elements)
+            pb.update_title("Aplicando: {} de {} - Código: {}".format(
+                current_element, total_elements, elemento_data["codigo"]))
+            
+            element_type = elemento_data["element_type"]
+            parameters_shared = elemento_data["parameters"]
+            
+            try:
+                # ==== Aplicar todos los parámetros al TIPO ====
+                for param_name, value in parameters_shared.items():
+                    if value is not None:
+                        try:
+                            param = getParameter(element_type, param_name)
+                            if param:
+                                SetParameter(param, value)
+                        except Exception as e:
+                            print("Error estableciendo parámetro {} en tipo {}: {}".format(
+                                param_name, element_type.Id, str(e)))
+
+                conteo += 1
+                print("Procesado tipo {} con código: {} ({} instancias)".format(
+                    element_type.Id, elemento_data["codigo"], elemento_data["instancias"]))
+                
+            except Exception as e:
+                print("Error procesando elemento tipo {}: {}".format(element_type.Id, str(e)))
+                elementos_omitidos += 1
 
 # Mostrar resultados detallados
 total_tipos = len(element_types_data)

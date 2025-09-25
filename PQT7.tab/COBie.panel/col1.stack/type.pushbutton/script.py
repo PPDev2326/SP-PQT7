@@ -346,18 +346,8 @@ for type_id, type_data in element_types_data.items():
             if excel_param in datos_excel and datos_excel[excel_param] is not None:
                 valor_excel = datos_excel[excel_param]
                 
-                # Convertir valores numéricos enteros (solo ExpectedLife)
-                if excel_param == "COBie.Type.ExpectedLife":
-                    try:
-                        if str(valor_excel).strip() != "":
-                            valor_excel = int(float(valor_excel))
-                        else:
-                            valor_excel = None
-                    except (ValueError, TypeError):
-                        valor_excel = None
-                
                 # Parámetros de longitud - convertir de metros a unidades internas de Revit
-                elif excel_param in ["COBie.Type.NominalLength",
+                if excel_param in ["COBie.Type.NominalLength",
                                    "COBie.Type.NominalWidth", 
                                    "COBie.Type.NominalHeight"]:
                     try:
@@ -378,7 +368,7 @@ for type_id, type_data in element_types_data.items():
                     except (ValueError, TypeError):
                         valor_excel = None
                 
-                # Todos los demás parámetros (incluido WarrantyDurationParts) son texto
+                # Todos los demás parámetros son texto
                 else:
                     if str(valor_excel).strip() != "":
                         valor_excel = str(valor_excel).strip()

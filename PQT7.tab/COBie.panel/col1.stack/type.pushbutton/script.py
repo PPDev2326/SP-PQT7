@@ -137,7 +137,7 @@ if specialty == "ARQUITECTURA":
     headers = excel_instance.get_headers(excel_rows, 2)
     headers_required = excel_instance.headers_required(headers, parametros_cobie)
     data_headers = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
-    print(headers_required)
+    print(data_headers)
 
 # element_types = dict()  # type_id_int -> element_type
 

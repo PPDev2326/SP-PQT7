@@ -11,8 +11,6 @@ from DBRepositories.SpecialtiesRepository import SpecialtiesRepository
 from DBRepositories.SchoolRepository import ColegiosRepository
 from Helper._Excel import Excel
 
-from pyrevit import forms
-
 parametros_cobie = [
         "COBie.Type.Manufacturer",
         "COBie.Type.ModelNumber", 
@@ -286,9 +284,9 @@ for type_id, type_data in element_types_data.items():
     
     # Actualizar progress bar
     current_step += 1
-    progress_percent = int((current_step * 100.0) / total_types)
+    progress_percent = float(current_step) / float(total_types)
     
-    if not pb.update_progress(progress_percent, "Preparando: {} de {} - {}%".format(current_step, total_types, progress_percent)):
+    if not pb.update_progress(progress_percent, current_step, total_types):
         pb.close()
         forms.alert("Proceso cancelado por el usuario.", exitscript=True)
     
@@ -413,12 +411,9 @@ with revit.Transaction("Transferencia COBie Type Masiva"):
     for elemento_data in elementos_a_procesar:
         # Actualizar progress bar
         current_element += 1
-        progress_percent = int((current_element * 100.0) / total_elements)
+        progress_percent = float(current_element) / float(total_elements)
         
-        mensaje = "Aplicando: {} de {} - Código: {} ({}%)".format(
-            current_element, total_elements, elemento_data["codigo"], progress_percent)
-        
-        if not pb.update_progress(progress_percent, mensaje):
+        if not pb.update_progress(progress_percent, current_element, total_elements):
             pb.close()
             forms.alert("Proceso cancelado por el usuario. Elementos procesados hasta el momento: {}".format(conteo))
             break
@@ -456,5 +451,5 @@ mensaje += "• Tipos procesados exitosamente: {}\n".format(conteo)
 mensaje += "• Tipos omitidos: {}\n".format(elementos_omitidos)
 if codigos_no_encontrados:
     mensaje += "• Códigos no encontrados en Excel: {}\n".format(len(set(codigos_no_encontrados)))
-#
+
 TaskDialog.Show("Resultado del Proceso", mensaje)

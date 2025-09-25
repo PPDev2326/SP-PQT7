@@ -274,16 +274,15 @@ print("Preparando datos para procesamiento en masa...")
 current_step = 0
 total_types = len(element_types_data)
 
-# ProgressBar para preparación
-with ProgressBar(title="Preparando elementos para COBie...") as pb:
-    for type_id, type_data in element_types_data.items():
-        element_type = type_data["element_type"]
-        codigo_elemento = type_data["codigo"]
-        instancias = type_data["instancias"]
-        
-        # Actualizar progress bar
-        current_step += 1
-        pb.update_progress(current_step, total_types)
+for type_id, type_data in element_types_data.items():
+    element_type = type_data["element_type"]
+    codigo_elemento = type_data["codigo"]
+    instancias = type_data["instancias"]
+    
+    # Mostrar progreso cada 10 elementos
+    current_step += 1
+    if current_step % 10 == 0 or current_step == total_types:
+        print("Preparando: {} de {}".format(current_step, total_types))
     
     # Verificar si el elemento debe procesarse
     param_cobie_type = getParameter(element_type, "COBie.Type")

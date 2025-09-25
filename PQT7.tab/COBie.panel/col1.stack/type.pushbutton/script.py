@@ -12,7 +12,8 @@ from Helper._Excel import Excel
 
 parametros_cobie = [
         "COBie.Type.Manufacturer",
-        "COBie.Type.ModelNumber", 
+        "COBie.Type.ModelNumber",
+        "COBie.Type.WarrantyGuarantorParts" 
         "COBie.Type.WarrantyDurationParts",
         "COBie.Type.WarrantyDurationLabor",
         "COBie.Type.ReplacementCost",
@@ -92,8 +93,7 @@ GRADE = "Grado Estándar"
 parameters_static = {
     "COBie.Type.CreatedBy": created_by_value,
     "COBie.Type.CreatedOn": CREATED_ON,
-    "COBie.Type.AssetType": asset_type,
-    "COBie.Type.WarrantyGuarantorParts": created_by_value,       
+    "COBie.Type.AssetType": asset_type,       
     "COBie.Type.WarrantyGuarantorLabor": created_by_value,
     "COBie.Type.WarrantyDurationUnit": DURATION_UNIT,
     "COBie.Type.DurationUnit": DURATION_UNIT,
@@ -237,6 +237,7 @@ def buscar_datos_por_codigo(data_list, codigo_elemento):
 param_mapping = {
     "COBie.Type.Manufacturer": "COBie.Type.Manufacturer",
     "COBie.Type.ModelNumber": "COBie.Type.ModelNumber",
+    "COBie.Type.WarrantyGuarantorParts": "COBie.Type.WarrantyGuarantorParts",
     "COBie.Type.WarrantyDurationParts": "COBie.Type.WarrantyDurationParts",
     "COBie.Type.WarrantyDurationLabor": "COBie.Type.WarrantyDurationLabor",
     "COBie.Type.ReplacementCost": "COBie.Type.ReplacementCost",

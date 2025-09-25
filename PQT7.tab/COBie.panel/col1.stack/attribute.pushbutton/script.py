@@ -4,27 +4,31 @@ __title__ = "COBie Attribute"
 from Autodesk.Revit.DB import Document, FilteredElementCollector, BuiltInCategory, FamilyInstance
 from Autodesk.Revit.UI import TaskDialog
 from pyrevit import revit, forms, script
-from Extensions._Dictionary import ObtenerCodigoColegio, ObtenerCodigoContrato, ObtenerCodigoInstitucion, ObtenerCodigoTrama
 from Extensions._RevitAPI import getParameter, SetParameter
 
 uidoc = revit.uidoc
 doc = revit.doc
 
+# ==== Obtenemos la categoria projectinformation ====
 project_info = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_ProjectInformation).FirstElement()
 
-codigo_colegio = ObtenerCodigoColegio(doc)
-CLIENTE = "PEIP"
-MP = "Plan de mantenimiento recurrente y preventivo, del manual de O&M"
-doc_omm = "{}-CGC01-MM-GR-000010".format(codigo_colegio)
-RPM_DATE = "2030-03-17"
-supplier = forms.ask_for_string(default="Nombre de subcontrata", prompt="Introduce Nombre:", title="Supplier")
+# ==== Datos estáticos ====
+CLIENTE = "PAQUETE 07 - ANIN"
+MP = "Manual de Operación y Mantenimiento"
+SUPPLIER = "CONSORCIO SYP"
 TEST_SHEET = "Anexos del manual de operacion y mantenimiento"
+SUBSECTOR = "Educacion"
+
+codigo_colegio = ObtenerCodigoColegio(doc)
+
+
+
 contract_code = ObtenerCodigoContrato(doc)
 doc_reference = "28554300_Peru-Bic_Schools_Report_{}1".format(codigo_colegio)
 code_inst = ObtenerCodigoInstitucion(doc)
 LAND_CODE = "E1"
 plot_code = ObtenerCodigoTrama(doc)
-ACTIVO = "Educacion"
+
 CLASS_DESC = "Educational complexes"
 CLASS_NUMBER = "Co_25_10"
 
@@ -33,7 +37,7 @@ parametros_estaticos = {
     "COBie.Attribute.MaintenanceProcedure" : MP,
     "COBie.Attribute.OperationsAndMaintenanceManual" : doc_omm,
     "COBie.Attribute.ReplacementDate" : RPM_DATE,
-    "COBie.Attribute.Supplier" : supplier,
+    "COBie.Attribute.Supplier" : SUPPLIER,
     "COBie.Attribute.TestSheet" : TEST_SHEET,
     "COBie.Attribute.ContractCode" : contract_code,
     "COBie.Attribute.DocumentReference" : doc_reference,
@@ -41,7 +45,7 @@ parametros_estaticos = {
     "COBie.Attribute.LandUseCode" : LAND_CODE,
     "COBie.Attribute.PlotCode" : plot_code,
     "COBie.Attribute.ProjectCode" : codigo_colegio,
-    "COBie.Attribute.SubSector" : ACTIVO,
+    "COBie.Attribute.SubSector" : SUBSECTOR,
     "Classification.Facility.Description" : CLASS_DESC,
     "Classification.Facility.Number" : CLASS_NUMBER
 }

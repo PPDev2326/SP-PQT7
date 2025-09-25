@@ -64,10 +64,7 @@ if specialty_object:
 if specialty == "ARQUITECTURA":
     excel_instance = Excel()
     excel = excel_instance.read_excel('ESTANDAR COBIE  -AR')
-    print("RESULTADO FINAL:")
-    print("Tipo: {}".format(type(excel)))
-    print("Longitud: {}".format(len(excel)))
-    print("Contenido: {}".format(excel))
+    print(excel)
 
 # ==== Obtenemos el colegio correspondiente segun modelo y sus datos necesarios ====
 repo_schools = ColegiosRepository()

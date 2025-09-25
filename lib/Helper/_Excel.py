@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from Autodesk.Revit.DB import BuiltInCategory
-from pyrevit import forms
+from pyrevit import forms, revit
 from pyrevit.interop import xl
 
 class Excel:
@@ -21,14 +21,8 @@ class Excel:
             forms.alert("No se seleccionó ningún archivo.", exitscript=True)
             return []
         
-        datos = xl.load(ruta, sheets=hoja, headers=encabezados)
-        
-        if isinstance(datos, dict):
-            # caso normal
-            filas = datos.get(hoja, {}).get('rows', [])
-        else:
-            # caso wrapper
-            filas = datos.rows if hasattr(datos, "rows") else []
+        datos = xl.load(ruta, sheets=str(hoja), headers=encabezados)
+        filas = datos.get(str(hoja), {}).get('rows', [])
         
         return filas
     

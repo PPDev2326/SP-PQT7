@@ -13,7 +13,7 @@ from Helper._Excel import Excel
 parametros_cobie = [
         "COBie.Type.Manufacturer",
         "COBie.Type.ModelNumber",
-        "COBie.Type.WarrantyGuarantorParts" 
+        "COBie.Type.WarrantyGuarantorParts",
         "COBie.Type.WarrantyDurationParts",
         "COBie.Type.WarrantyDurationLabor",
         "COBie.Type.ReplacementCost",

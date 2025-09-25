@@ -10,8 +10,7 @@ from DBRepositories.SpecialtiesRepository import SpecialtiesRepository
 from DBRepositories.SchoolRepository import ColegiosRepository
 from Helper._Excel import Excel
 
-# Importar ProgressBar
-from pyrevit.forms import ProgressBar
+from pyrevit import forms
 
 parametros_cobie = [
         "COBie.Type.Manufacturer",
@@ -274,178 +273,179 @@ elementos_a_procesar = []
 print("Preparando datos para procesamiento en masa...")
 
 # ProgressBar para preparación
-with ProgressBar(title="Preparando elementos...", 
-                 cancellable=True, 
-                 step=10) as pb:
+pb = ProgressBar(title="Preparando elementos para COBie...", cancellable=True)
+
+current_step = 0
+total_types = len(element_types_data)
+
+for type_id, type_data in element_types_data.items():
+    element_type = type_data["element_type"]
+    codigo_elemento = type_data["codigo"]
+    instancias = type_data["instancias"]
     
-    current_step = 0
-    total_types = len(element_types_data)
+    # Actualizar progress bar
+    current_step += 1
+    progress_percent = int((current_step * 100.0) / total_types)
     
-    for type_id, type_data in element_types_data.items():
-        element_type = type_data["element_type"]
-        codigo_elemento = type_data["codigo"]
-        instancias = type_data["instancias"]
+    if not pb.update_progress(progress_percent, "Preparando: {} de {} - {}%".format(current_step, total_types, progress_percent)):
+        pb.close()
+        forms.alert("Proceso cancelado por el usuario.", exitscript=True)
+    
+    # Verificar si el elemento debe procesarse
+    param_cobie_type = getParameter(element_type, "COBie.Type")
+    if not (param_cobie_type and param_cobie_type.StorageType == StorageType.Integer and param_cobie_type.AsInteger() == 1):
+        elementos_omitidos += 1
+        continue
+    
+    try:
+        # ==== Buscar datos en Excel ====
+        datos_excel = buscar_datos_por_codigo(data_list, codigo_elemento)
         
-        # Actualizar progress bar
-        current_step += 1
-        if pb.cancelled:
-            forms.alert("Proceso cancelado por el usuario.", exitscript=True)
-        
-        pb.update_progress(current_step, total_types)
-        pb.update_title("Preparando: {} de {}".format(current_step, total_types))
-        
-        # Verificar si el elemento debe procesarse
-        param_cobie_type = getParameter(element_type, "COBie.Type")
-        if not (param_cobie_type and param_cobie_type.StorageType == StorageType.Integer and param_cobie_type.AsInteger() == 1):
+        if not datos_excel:
+            if codigo_elemento not in codigos_no_encontrados:
+                codigos_no_encontrados.append(codigo_elemento)
+                print("No se encontraron datos en Excel para código: {}".format(codigo_elemento))
             elementos_omitidos += 1
             continue
         
-        try:
-            # ==== Buscar datos en Excel ====
-            datos_excel = buscar_datos_por_codigo(data_list, codigo_elemento)
-            
-            if not datos_excel:
-                if codigo_elemento not in codigos_no_encontrados:
-                    codigos_no_encontrados.append(codigo_elemento)
-                    print("No se encontraron datos en Excel para código: {}".format(codigo_elemento))
-                elementos_omitidos += 1
-                continue
-            
-            # ==== Preparar datos del elemento tipo ====
-            category_object = element_type.Category
-            category_name = category_object.Name if category_object else "Sin Categoría"
-            
-            fam_name = "Sin Familia"
-            if isinstance(element_type, ElementType):
-                fam_name = element_type.FamilyName
-            
-            param_name_value = "Sin Nombre"
-            object_param_name = GetParameterAPI(element_type, BuiltInParameter.SYMBOL_NAME_PARAM)
-            if object_param_name:
-                param_name_value = object_param_name.AsString() or "Sin Nombre"
-            
-            param_desc_value = "Sin Descripción"
-            object_param_desc = getParameter(element_type, "Descripción")
-            if object_param_desc and object_param_desc.HasValue:
-                param_desc_value = object_param_desc.AsString() or "Sin Descripción"
-            
-            param_name_material = "Sin Material"
-            object_param_material = getParameter(element_type, "S&P_MATERIAL DE ELEMENTO")
-            if object_param_material and object_param_material.HasValue:
-                param_name_material = object_param_material.AsString() or "Sin Material"
-            
-            medidas = extraer_medida(param_name_value)
-            
-            param_pr_number = getParameter(element_type, "Classification.Uniclass.Pr.Number")
-            param_pr_desc = getParameter(element_type, "Classification.Uniclass.Pr.Description")
-            
-            pr_number = ""
-            pr_desc = ""
-            if param_pr_number and param_pr_number.HasValue:
-                pr_number = param_pr_number.AsString() or ""
-            if param_pr_desc and param_pr_desc.HasValue:
-                pr_desc = param_pr_desc.AsString() or ""
+        # ==== Preparar datos del elemento tipo ====
+        category_object = element_type.Category
+        category_name = category_object.Name if category_object else "Sin Categoría"
+        
+        fam_name = "Sin Familia"
+        if isinstance(element_type, ElementType):
+            fam_name = element_type.FamilyName
+        
+        param_name_value = "Sin Nombre"
+        object_param_name = GetParameterAPI(element_type, BuiltInParameter.SYMBOL_NAME_PARAM)
+        if object_param_name:
+            param_name_value = object_param_name.AsString() or "Sin Nombre"
+        
+        param_desc_value = "Sin Descripción"
+        object_param_desc = getParameter(element_type, "Descripción")
+        if object_param_desc and object_param_desc.HasValue:
+            param_desc_value = object_param_desc.AsString() or "Sin Descripción"
+        
+        param_name_material = "Sin Material"
+        object_param_material = getParameter(element_type, "S&P_MATERIAL DE ELEMENTO")
+        if object_param_material and object_param_material.HasValue:
+            param_name_material = object_param_material.AsString() or "Sin Material"
+        
+        medidas = extraer_medida(param_name_value)
+        
+        param_pr_number = getParameter(element_type, "Classification.Uniclass.Pr.Number")
+        param_pr_desc = getParameter(element_type, "Classification.Uniclass.Pr.Description")
+        
+        pr_number = ""
+        pr_desc = ""
+        if param_pr_number and param_pr_number.HasValue:
+            pr_number = param_pr_number.AsString() or ""
+        if param_pr_desc and param_pr_desc.HasValue:
+            pr_desc = param_pr_desc.AsString() or ""
 
-            # ==== Parámetros compartidos (base) ====
-            parameters_shared = {
-                "COBie.Type.Name": "{} : {} : {}".format(category_name, fam_name, param_name_value),
-                "COBie.Type.Category": "{} : {}".format(pr_number, pr_desc),
-                "COBie.Type.Description": param_desc_value,
-                "COBie.Type.Size": medidas,
-                "COBie.Type.Material": param_name_material
-            }
+        # ==== Parámetros compartidos (base) ====
+        parameters_shared = {
+            "COBie.Type.Name": "{} : {} : {}".format(category_name, fam_name, param_name_value),
+            "COBie.Type.Category": "{} : {}".format(pr_number, pr_desc),
+            "COBie.Type.Description": param_desc_value,
+            "COBie.Type.Size": medidas,
+            "COBie.Type.Material": param_name_material
+        }
 
-            # ==== Agregar parámetros estáticos ====
-            parameters_shared.update(parameters_static)
-            
-            # ==== Agregar parámetros del Excel ====
-            for excel_param, revit_param in param_mapping.items():
-                if excel_param in datos_excel and datos_excel[excel_param] is not None:
-                    valor_excel = datos_excel[excel_param]
-                    
-                    # Convertir valores numéricos si es necesario
-                    if excel_param in ["COBie.Type.WarrantyDurationParts", 
-                                     "COBie.Type.WarrantyDurationLabor", 
-                                     "COBie.Type.ExpectedLife"]:
-                        try:
-                            valor_excel = int(float(valor_excel)) if valor_excel else None
-                        except (ValueError, TypeError):
-                            valor_excel = None
-                    
-                    elif excel_param in ["COBie.Type.ReplacementCost",
-                                       "COBie.Type.NominalLength",
-                                       "COBie.Type.NominalWidth", 
-                                       "COBie.Type.NominalHeight"]:
-                        try:
-                            if excel_param.startswith("COBie.Type.Nominal"):
-                                # Convertir a unidades internas de Revit (pies)
-                                valor_excel = UnitUtils.ConvertToInternalUnits(float(valor_excel), UnitTypeId.Meters) if valor_excel else None
-                            else:
-                                valor_excel = float(valor_excel) if valor_excel else None
-                        except (ValueError, TypeError):
-                            valor_excel = None
-                    
-                    if valor_excel is not None:
-                        parameters_shared[revit_param] = valor_excel
+        # ==== Agregar parámetros estáticos ====
+        parameters_shared.update(parameters_static)
+        
+        # ==== Agregar parámetros del Excel ====
+        for excel_param, revit_param in param_mapping.items():
+            if excel_param in datos_excel and datos_excel[excel_param] is not None:
+                valor_excel = datos_excel[excel_param]
+                
+                # Convertir valores numéricos si es necesario
+                if excel_param in ["COBie.Type.WarrantyDurationParts", 
+                                 "COBie.Type.WarrantyDurationLabor", 
+                                 "COBie.Type.ExpectedLife"]:
+                    try:
+                        valor_excel = int(float(valor_excel)) if valor_excel else None
+                    except (ValueError, TypeError):
+                        valor_excel = None
+                
+                elif excel_param in ["COBie.Type.ReplacementCost",
+                                   "COBie.Type.NominalLength",
+                                   "COBie.Type.NominalWidth", 
+                                   "COBie.Type.NominalHeight"]:
+                    try:
+                        if excel_param.startswith("COBie.Type.Nominal"):
+                            # Convertir a unidades internas de Revit (pies)
+                            valor_excel = UnitUtils.ConvertToInternalUnits(float(valor_excel), UnitTypeId.Meters) if valor_excel else None
+                        else:
+                            valor_excel = float(valor_excel) if valor_excel else None
+                    except (ValueError, TypeError):
+                        valor_excel = None
+                
+                if valor_excel is not None:
+                    parameters_shared[revit_param] = valor_excel
 
-            # Agregar elemento preparado a la lista
-            elementos_a_procesar.append({
-                "element_type": element_type,
-                "parameters": parameters_shared,
-                "codigo": codigo_elemento,
-                "instancias": len(instancias)
-            })
-            
-        except Exception as e:
-            print("Error preparando elemento tipo {}: {}".format(element_type.Id, str(e)))
-            elementos_omitidos += 1
+        # Agregar elemento preparado a la lista
+        elementos_a_procesar.append({
+            "element_type": element_type,
+            "parameters": parameters_shared,
+            "codigo": codigo_elemento,
+            "instancias": len(instancias)
+        })
+        
+    except Exception as e:
+        print("Error preparando elemento tipo {}: {}".format(element_type.Id, str(e)))
+        elementos_omitidos += 1
 
+pb.close()
 print("Elementos preparados para procesamiento: {}".format(len(elementos_a_procesar)))
 
 # Fase 2: Transaction en masa para aplicar parámetros
 print("Iniciando transaction en masa...")
 
 with revit.Transaction("Transferencia COBie Type Masiva"):
-    with ProgressBar(title="Aplicando parámetros COBie...", 
-                     cancellable=True, 
-                     step=5) as pb:
+    pb = ProgressBar(title="Aplicando parámetros COBie...", cancellable=True)
+    
+    current_element = 0
+    total_elements = len(elementos_a_procesar)
+    
+    for elemento_data in elementos_a_procesar:
+        # Actualizar progress bar
+        current_element += 1
+        progress_percent = int((current_element * 100.0) / total_elements)
         
-        current_element = 0
-        total_elements = len(elementos_a_procesar)
+        mensaje = "Aplicando: {} de {} - Código: {} ({}%)".format(
+            current_element, total_elements, elemento_data["codigo"], progress_percent)
         
-        for elemento_data in elementos_a_procesar:
-            # Actualizar progress bar
-            current_element += 1
-            if pb.cancelled:
-                forms.alert("Proceso cancelado por el usuario. Elementos procesados hasta el momento: {}".format(conteo))
-                break
-            
-            pb.update_progress(current_element, total_elements)
-            pb.update_title("Aplicando: {} de {} - Código: {}".format(
-                current_element, total_elements, elemento_data["codigo"]))
-            
-            element_type = elemento_data["element_type"]
-            parameters_shared = elemento_data["parameters"]
-            
-            try:
-                # ==== Aplicar todos los parámetros al TIPO ====
-                for param_name, value in parameters_shared.items():
-                    if value is not None:
-                        try:
-                            param = getParameter(element_type, param_name)
-                            if param:
-                                SetParameter(param, value)
-                        except Exception as e:
-                            print("Error estableciendo parámetro {} en tipo {}: {}".format(
-                                param_name, element_type.Id, str(e)))
+        if not pb.update_progress(progress_percent, mensaje):
+            pb.close()
+            forms.alert("Proceso cancelado por el usuario. Elementos procesados hasta el momento: {}".format(conteo))
+            break
+        
+        element_type = elemento_data["element_type"]
+        parameters_shared = elemento_data["parameters"]
+        
+        try:
+            # ==== Aplicar todos los parámetros al TIPO ====
+            for param_name, value in parameters_shared.items():
+                if value is not None:
+                    try:
+                        param = getParameter(element_type, param_name)
+                        if param:
+                            SetParameter(param, value)
+                    except Exception as e:
+                        print("Error estableciendo parámetro {} en tipo {}: {}".format(
+                            param_name, element_type.Id, str(e)))
 
-                conteo += 1
-                print("Procesado tipo {} con código: {} ({} instancias)".format(
-                    element_type.Id, elemento_data["codigo"], elemento_data["instancias"]))
-                
-            except Exception as e:
-                print("Error procesando elemento tipo {}: {}".format(element_type.Id, str(e)))
-                elementos_omitidos += 1
+            conteo += 1
+            print("Procesado tipo {} con código: {} ({} instancias)".format(
+                element_type.Id, elemento_data["codigo"], elemento_data["instancias"]))
+            
+        except Exception as e:
+            print("Error procesando elemento tipo {}: {}".format(element_type.Id, str(e)))
+            elementos_omitidos += 1
+
+    pb.close()
 
 # Mostrar resultados detallados
 total_tipos = len(element_types_data)

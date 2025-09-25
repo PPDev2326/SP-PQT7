@@ -1,111 +1,394 @@
 # -*- coding: utf-8 -*-
+__title__ = "COBie Type"
 
-from Autodesk.Revit.DB import BuiltInCategory
-from pyrevit import forms, revit
-from pyrevit.interop import xl
+import re
+from Autodesk.Revit.DB import BuiltInParameter, StorageType, UnitUtils, UnitTypeId, FamilyInstance, ElementType
+from Autodesk.Revit.UI import TaskDialog
+from pyrevit import script, revit, forms
+from Extensions._RevitAPI import getParameter, GetParameterAPI, SetParameter
+from DBRepositories.SpecialtiesRepository import SpecialtiesRepository
+from DBRepositories.SchoolRepository import ColegiosRepository
+from Helper._Excel import Excel
 
-class Excel:
-    def read_excel(self, hoja, encabezados=False):
-        """
-        Lee un archivo Excel.
+parametros_cobie = [
+        "COBie.Type.Manufacturer",
+        "COBie.Type.ModelNumber", 
+        "COBie.Type.WarrantyDurationParts",
+        "COBie.Type.WarrantyDurationLabor",
+        "COBie.Type.ReplacementCost",
+        "COBie.Type.ExpectedLife",
+        "COBie.Type.NominalLength",
+        "COBie.Type.NominalWidth",
+        "COBie.Type.NominalHeight",
+        "COBie.Type.Color",
+        "COBie.Type.Finish",
+        "COBie.Type.Constituents",
+        "CODIGO"  # Columna identificadora
+    ]
 
-        :param hoja: El nombre de la hoja de cálculo.
-        :type hoja: str
-        :param encabezados: Si es True, la primera fila se trata como encabezados.
-        :type encabezados: bool, optional
-        :return: Las filas del Excel.
-        :rtype: list
-        """
-        ruta = forms.pick_excel_file()
-        if not ruta:
-            forms.alert("No se seleccionó ningún archivo.", exitscript=True)
-            return []
-        
-        datos = xl.load(ruta, sheets=str(hoja), headers=encabezados)
-        filas = datos.get(hoja, {}).get('rows', [])
-        
-        return filas
+def extraer_medida(tipo_name):
+    """
+    Extrae el contenido que está dentro de paréntesis de un string
     
-    def get_headers(self, rows, start_row = 0):
-        """
-        Busca los encabezados en las filas y retorna los índices de las columnas.
+    Args:
+        tipo_name: String que contiene texto con paréntesis
         
-        :param rows: Lista de filas del Excel.
-        :type rows: list
-        :param start_row: Indice que decidira los encabezados.
-        :type start_row: int, optional, default 0
-        :return: Diccionario con los índices de las columnas encontradas con valor.
-        :rtype: dict
-        """
-        if len(rows) <= start_row:
-            forms.alert("El archivo no tiene suficientes filas para contener encabezados en la fila {}.".format(start_row + 1), exitscript=True)
-            return {}
+    Returns:
+        String con el contenido dentro de paréntesis, o None si no encuentra
+    """
+    if not tipo_name:
+        return None
+    match = re.search(r'\(([^)]+)\)', tipo_name)
+    return match.group(1) if match else None
 
-        headers = rows[start_row]
-        headers_dict = {}
-        
-        for idx ,h in enumerate(headers):
-            if h not in ("", None):         # => Ignoramos celdas vacias
-                headers_dict[idx] = h
-        return headers_dict
+uidoc = revit.uidoc
+doc = revit.doc
+
+# ==== Obtenemos la especialidad del modelo activo y sus datos ====
+repo_specialties = SpecialtiesRepository()
+specialty_object = repo_specialties.get_specialty_by_document(doc)
+specialty = None
+sp_accesibility = None
+sp_code = None
+sp_sustainability = None
+sp_feature = None
+
+if specialty_object:
+    specialty = specialty_object.name
+    sp_accesibility = specialty_object.accessibility_performance
+    sp_code = specialty_object.code_perfomance
+    sp_sustainability = specialty_object.sustainability
+    sp_feature = specialty_object.feature
+
+# ==== Obtenemos el colegio correspondiente segun modelo y sus datos necesarios ====
+repo_schools = ColegiosRepository()
+school_object = repo_schools.codigo_colegio(doc)
+school = None
+created_by_value = None
+warranty_description_value = None
+
+if school_object:
+    school = school_object.name
+    created_by_value = school_object.created_by
+    warranty_description_value = school_object.warranty_description
+
+# Validación de datos críticos
+if not created_by_value or not warranty_description_value:
+    forms.alert("No se pudieron obtener los datos del colegio necesarios.", exitscript=True)
+
+# ==== Segun especialidad ====
+if specialty in ["ARQUITECTURA", "ESTRUCTURAS"]:
+    asset_type = "Semi-fixed"
+else:
+    asset_type = "Fixed"
+
+# ==== Datos estáticos ====
+CREATED_ON = "2025-08-04T11:59:30"
+DURATION_UNIT = "AÑO"
+SHAPE = "Poligonal"
+GRADE = "Grado Estándar"
+
+parameters_static = {
+    "COBie.Type.CreatedBy": created_by_value,
+    "COBie.Type.CreatedOn": CREATED_ON,
+    "COBie.Type.AssetType": asset_type,
+    "COBie.Type.WarrantyGuarantorParts": created_by_value,       
+    "COBie.Type.WarrantyGuarantorLabor": created_by_value,
+    "COBie.Type.WarrantyDurationUnit": DURATION_UNIT,
+    "COBie.Type.DurationUnit": DURATION_UNIT,
+    "COBie.Type.WarrantyDescription": warranty_description_value,
+    "COBie.Type.ModelReference": warranty_description_value,
+    "COBie.Type.Shape": SHAPE,
+    "COBie.Type.Grade": GRADE,
+    "COBie.Type.Features": sp_feature,
+    "COBie.Type.AccessibilityPerformance": sp_accesibility,
+    "COBie.Type.CodePerformance": sp_code,
+    "COBie.Type.SustainabilityPerformance": sp_sustainability,
+}
+
+# ==== Selección y preparación ====
+try:
+    selection = uidoc.Selection.PickElementsByRectangle()
+    if not selection:
+        forms.alert("No se seleccionaron elementos.", exitscript=True)
+except Exception as e:
+    forms.alert("No se seleccionaron elementos o se produjo un error:\n\n" + str(e), exitscript=True)
+
+# ==== Obtenemos la hoja excel de acuerdo a la especialidad ====
+data_list = None
+
+if specialty == "ARQUITECTURA":
+    excel_instance = Excel()
+    excel_rows = excel_instance.read_excel('ESTANDAR COBIE  -AR')
+    headers = excel_instance.get_headers(excel_rows, 2)
+    headers_required = excel_instance.headers_required(headers, parametros_cobie)
+    data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
+    print("Datos de Arquitectura cargados:", len(data_list), "filas")
+
+elif specialty == "INSTALACIONES SANITARIAS":
+    excel_instance = Excel()
+    excel_rows = excel_instance.read_excel('ESTANDAR COBIE  - PL')
+    headers = excel_instance.get_headers(excel_rows, 2)
+    headers_required = excel_instance.headers_required(headers, parametros_cobie)
+    data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
+    print("Datos de Sanitarias cargados:", len(data_list), "filas")
+
+elif specialty == "INSTALACIONES ELECTRICAS":
+    excel_instance = Excel()
+    excel_rows = excel_instance.read_excel('ESTANDAR COBIE  -EE')
+    headers = excel_instance.get_headers(excel_rows, 2)
+    headers_required = excel_instance.headers_required(headers, parametros_cobie)
+    data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
+    print("Datos de Eléctricas cargados:", len(data_list), "filas")
+
+elif specialty == "COMUNICACIONES":
+    excel_instance = Excel()
+    excel_rows = excel_instance.read_excel('ESTANDAR COBIE  - IICC')
+    headers = excel_instance.get_headers(excel_rows, 2)
+    headers_required = excel_instance.headers_required(headers, parametros_cobie)
+    data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
+    print("Datos de Comunicaciones cargados:", len(data_list), "filas")
+
+elif specialty == "INSTALACIONES MECANICAS":
+    excel_instance = Excel()
+    excel_rows = excel_instance.read_excel('ESTANDAR COBIE  - ME')
+    headers = excel_instance.get_headers(excel_rows, 2)
+    headers_required = excel_instance.headers_required(headers, parametros_cobie)
+    data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
+    print("Datos de Mecánicas cargados:", len(data_list), "filas")
+
+else:
+    forms.alert("Especialidad '{}' no reconocida para cargar datos Excel.".format(specialty), exitscript=True)
+
+if not data_list:
+    forms.alert("No se pudieron cargar los datos del Excel.", exitscript=True)
+
+# ==== Función para buscar datos del Excel por código ====
+def buscar_datos_por_codigo(data_list, codigo_elemento):
+    """
+    Busca los datos del Excel que coincidan con el código del elemento.
     
-    def headers_required(self, headers, columns_name):
-        """
-        Filtra los encabezados encontrados y retorna solo los que están en columns_name.
-        
-        Args:
-            headers (dict): Diccionario {indice: nombre_columna}
-            columns_name (list): Lista de nombres de columnas requeridas
-        
-        Returns:
-            dict: Diccionario existente {nombre_columna: indice}. Si alguna falta → None
-        """
-        
-        found = {}
-        for col in columns_name:
-            idx = None
-            for i, h in headers.items():
-                if h == col:
-                    idx = i
-                    break
-            found[col] = idx
-        return found
+    :param data_list: Lista de diccionarios con los datos del Excel.
+    :type data_list: list
+    :param codigo_elemento: Código del elemento de Revit.
+    :type codigo_elemento: str
+    :return: Diccionario con los datos encontrados o None si no encuentra.
+    :rtype: dict or None
+    """
+    if not data_list:
+        return None
     
-    def get_data_by_headers_required(self, rows_data, columns_required, start_data=1):
-        """
-        Obtiene los datos del Excel basados en los encabezados requeridos.
-        
-        Args:
-            rows_data (list): Filas del Excel
-            columns_required (dict): Diccionario {nombre_columna: índice}
-            start_data (int): Fila desde donde empiezan los datos (default: 1)
-        
-        Returns:
-            list: Lista de dicts, cada fila con sus columnas requeridas
-        """
-        data = []
-        for r in rows_data[start_data:]:
-            row_dict = {}
-            for col_name, idx in columns_required.items():
-                if idx is not None and idx < len(r):
-                    row_dict[col_name] = r[idx]
-                else:
-                    row_dict[col_name] = None
-            data.append(row_dict)
-        return data
+    for row_data in data_list:
+        codigo_excel = row_data.get("CODIGO")
+        if codigo_excel and str(codigo_excel).strip() == str(codigo_elemento).strip():
+            return row_data
+    
+    return None
 
+# ==== Mapeo de parámetros Excel -> Revit ====
+param_mapping = {
+    "COBie.Type.Manufacturer": "COBie.Type.Manufacturer",
+    "COBie.Type.ModelNumber": "COBie.Type.ModelNumber",
+    "COBie.Type.WarrantyDurationParts": "COBie.Type.WarrantyDurationParts",
+    "COBie.Type.WarrantyDurationLabor": "COBie.Type.WarrantyDurationLabor",
+    "COBie.Type.ReplacementCost": "COBie.Type.ReplacementCost",
+    "COBie.Type.ExpectedLife": "COBie.Type.ExpectedLife",
+    "COBie.Type.NominalLength": "COBie.Type.NominalLength",
+    "COBie.Type.NominalWidth": "COBie.Type.NominalWidth",
+    "COBie.Type.NominalHeight": "COBie.Type.NominalHeight",
+    "COBie.Type.Color": "COBie.Type.Color",
+    "COBie.Type.Finish": "COBie.Type.Finish",
+    "COBie.Type.Constituents": "COBie.Type.Constituents"
+}
 
-# required_column = {
-#                 "COBie.Type.Manufacturer": None,
-#                 "COBie.Type.ModelNumber": None,
-#                 "COBie.Type.WarrantyDurationParts": None,
-#                 "COBie.Type.WarrantyDurationLabor": None,
-#                 "COBie.Type.ReplacementCost": None,               # Varia de acuerdo al excel
-#                 "COBie.Type.ExpectedLife": None,
-#                 "COBie.Type.NominalLength": None,
-#                 "COBie.Type.NominalWidth": None,
-#                 "COBie.Type.NominalHeight": None,
-#                 "COBie.Type.Color": None,
-#                 "COBie.Type.Finish": None,
-#                 "COBie.Type.Constituents": None
-#             }
+# ==== Procesamiento: Instancia → Tipo ====
+# Diccionario para almacenar: {type_id: {codigo, element_type, instancias}}
+element_types_data = {}
+
+for element in selection:
+    # ==== Obtener código de la INSTANCIA ====
+    codigo_elemento = None
+    param_codigo = getParameter(element, "S&P_CODIGO DE ELEMENTO")
+    if param_codigo and param_codigo.HasValue:
+        codigo_elemento = param_codigo.AsString()
+    
+    if not codigo_elemento or not codigo_elemento.strip():
+        print("Instancia {} no tiene código válido, se omite".format(element.Id))
+        continue
+    
+    # ==== Obtener el TIPO del elemento ====
+    type_elem = doc.GetElement(element.GetTypeId())
+    if not type_elem:
+        print("No se pudo obtener el tipo para instancia {}".format(element.Id))
+        continue
+    
+    type_id = type_elem.Id.IntegerValue
+    
+    # Almacenar o actualizar información del tipo
+    if type_id not in element_types_data:
+        element_types_data[type_id] = {
+            "codigo": codigo_elemento,
+            "element_type": type_elem,
+            "instancias": []
+        }
+    
+    element_types_data[type_id]["instancias"].append(element.Id)
+    
+    # Procesar subcomponentes si es FamilyInstance
+    if isinstance(element, FamilyInstance):
+        try:
+            for sc_id in element.GetSubComponentIds():
+                sub = doc.GetElement(sc_id)
+                if sub:
+                    type_sub = doc.GetElement(sub.GetTypeId())
+                    if type_sub:
+                        sub_type_id = type_sub.Id.IntegerValue
+                        if sub_type_id not in element_types_data:
+                            element_types_data[sub_type_id] = {
+                                "codigo": codigo_elemento,  # Usar el mismo código de la instancia padre
+                                "element_type": type_sub,
+                                "instancias": []
+                            }
+                        element_types_data[sub_type_id]["instancias"].append(sub.Id)
+        except Exception as e:
+            print("Error procesando subcomponentes de {}: {}".format(element.Id, str(e)))
+
+if not element_types_data:
+    forms.alert("No se encontraron elementos válidos con códigos.", exitscript=True)
+
+print("Elementos agrupados por tipo:", len(element_types_data))
+
+# ==== Proceso COBie.Type con datos del Excel ====
+conteo = 0
+elementos_omitidos = 0
+codigos_no_encontrados = []
+
+with revit.Transaction("Transferencia COBie Type con Excel"):
+    for type_id, type_data in element_types_data.items():
+        element_type = type_data["element_type"]
+        codigo_elemento = type_data["codigo"]
+        instancias = type_data["instancias"]
+        
+        # Verificar si el elemento debe procesarse
+        param_cobie_type = getParameter(element_type, "COBie.Type")
+        if not (param_cobie_type and param_cobie_type.StorageType == StorageType.Integer and param_cobie_type.AsInteger() == 1):
+            elementos_omitidos += 1
+            continue
+        
+        try:
+            # ==== Buscar datos en Excel ====
+            datos_excel = buscar_datos_por_codigo(data_list, codigo_elemento)
+            
+            if not datos_excel:
+                if codigo_elemento not in codigos_no_encontrados:
+                    codigos_no_encontrados.append(codigo_elemento)
+                    print("No se encontraron datos en Excel para código: {}".format(codigo_elemento))
+                elementos_omitidos += 1
+                continue
+            
+            print("Procesando tipo {} con código: {} ({} instancias)".format(
+                element_type.Id, codigo_elemento, len(instancias)))
+            
+            # ==== Obtener datos del elemento tipo ====
+            category_object = element_type.Category
+            category_name = category_object.Name if category_object else "Sin Categoría"
+            
+            fam_name = "Sin Familia"
+            if isinstance(element_type, ElementType):
+                fam_name = element_type.FamilyName
+            
+            param_name_value = "Sin Nombre"
+            object_param_name = GetParameterAPI(element_type, BuiltInParameter.SYMBOL_NAME_PARAM)
+            if object_param_name:
+                param_name_value = object_param_name.AsString() or "Sin Nombre"
+            
+            param_desc_value = "Sin Descripción"
+            object_param_desc = getParameter(element_type, "Descripción")
+            if object_param_desc and object_param_desc.HasValue:
+                param_desc_value = object_param_desc.AsString() or "Sin Descripción"
+            
+            param_name_material = "Sin Material"
+            object_param_material = getParameter(element_type, "S&P_MATERIAL DE ELEMENTO")
+            if object_param_material and object_param_material.HasValue:
+                param_name_material = object_param_material.AsString() or "Sin Material"
+            
+            medidas = extraer_medida(param_name_value)
+            
+            param_pr_number = getParameter(element_type, "Classification.Uniclass.Pr.Number")
+            param_pr_desc = getParameter(element_type, "Classification.Uniclass.Pr.Description")
+            
+            pr_number = ""
+            pr_desc = ""
+            if param_pr_number and param_pr_number.HasValue:
+                pr_number = param_pr_number.AsString() or ""
+            if param_pr_desc and param_pr_desc.HasValue:
+                pr_desc = param_pr_desc.AsString() or ""
+
+            # ==== Parámetros compartidos (base) ====
+            parameters_shared = {
+                "COBie.Type.Name": "{} : {} : {}".format(category_name, fam_name, param_name_value),
+                "COBie.Type.Category": "{} : {}".format(pr_number, pr_desc),
+                "COBie.Type.Description": param_desc_value,
+                "COBie.Type.Size": medidas,
+                "COBie.Type.Material": param_name_material
+            }
+
+            # ==== Agregar parámetros estáticos ====
+            parameters_shared.update(parameters_static)
+            
+            # ==== Agregar parámetros del Excel ====
+            for excel_param, revit_param in param_mapping.items():
+                if excel_param in datos_excel and datos_excel[excel_param] is not None:
+                    valor_excel = datos_excel[excel_param]
+                    
+                    # Convertir valores numéricos si es necesario
+                    if excel_param in ["COBie.Type.WarrantyDurationParts", 
+                                     "COBie.Type.WarrantyDurationLabor", 
+                                     "COBie.Type.ExpectedLife"]:
+                        try:
+                            valor_excel = int(float(valor_excel)) if valor_excel else None
+                        except (ValueError, TypeError):
+                            valor_excel = None
+                    
+                    elif excel_param in ["COBie.Type.ReplacementCost",
+                                       "COBie.Type.NominalLength",
+                                       "COBie.Type.NominalWidth", 
+                                       "COBie.Type.NominalHeight"]:
+                        try:
+                            if excel_param.startswith("COBie.Type.Nominal"):
+                                # Convertir a unidades internas de Revit (pies)
+                                valor_excel = UnitUtils.ConvertToInternalUnits(float(valor_excel), UnitTypeId.Meters) if valor_excel else None
+                            else:
+                                valor_excel = float(valor_excel) if valor_excel else None
+                        except (ValueError, TypeError):
+                            valor_excel = None
+                    
+                    if valor_excel is not None:
+                        parameters_shared[revit_param] = valor_excel
+
+            # ==== Aplicar todos los parámetros al TIPO ====
+            for param_name, value in parameters_shared.items():
+                if value is not None:
+                    try:
+                        param = getParameter(element_type, param_name)
+                        if param:
+                            SetParameter(param, value)
+                    except Exception as e:
+                        print("Error estableciendo parámetro {}: {}".format(param_name, str(e)))
+
+            conteo += 1
+            
+        except Exception as e:
+            print("Error procesando elemento tipo {}: {}".format(element_type.Id, str(e)))
+            elementos_omitidos += 1
+
+# Mostrar resultados detallados
+total_tipos = len(element_types_data)
+mensaje = "Procesamiento completado:\n"
+mensaje += "• Total de tipos encontrados: {}\n".format(total_tipos)
+mensaje += "• Tipos procesados exitosamente: {}\n".format(conteo)
+mensaje += "• Tipos omitidos: {}\n".format(elementos_omitidos)
+if codigos_no_encontrados:
+    mensaje += "• Códigos no encontrados en Excel: {}\n".format(len(set(codigos_no_encontrados)))
+
+TaskDialog.Show("Resultado del Proceso", mensaje)

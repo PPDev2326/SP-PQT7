@@ -14,11 +14,14 @@ doc = revit.doc
 
 # ---------------------- Utilidades ----------------------
 def extract_number_nivel(nivel):
-    """Extrae el número del nivel a partir de un string.
+    """Extrae el número del nivel o devuelve TECHO si corresponde.
     Si no encuentra nada devuelve '0' como valor seguro.
     """
     if not nivel:
         return "0"
+    nivel = nivel.strip().upper()
+    if "TECHO" in nivel:
+        return "TECHO"
     match = re.search(r"-?\d+", nivel)  # Captura números positivos o negativos
     return match.group(0) if match else "0"
 
@@ -121,8 +124,9 @@ with revit.Transaction("Asignar COBie Attribute"):
 
 # ---------------------- Reporte final ----------------------
 total = len(Selections_elements)
+output = script.get_output()
+
 if errores:
-    output = script.get_output()
     output.print_md("### ❌ Errores en parámetros:")
     for eid, pname in errores:
         output.print_md("- ElementId `{}` | Parámetro: `{}`".format(eid, pname))
@@ -130,3 +134,12 @@ if errores:
         "Se procesaron {} elementos.\nHubo {} errores. Revisa la consola de PyRevit.".format(total, len(errores)))
 else:
     TaskDialog.Show("Éxito", "Se procesaron {} elementos sin errores.".format(total))
+
+# 📊 Mostrar solo datos generales
+output.print_md("### 📊 Resumen general de la operación:")
+output.print_md("- Total de elementos procesados: **{}**".format(total))
+output.print_md("- Cliente: **{}**".format(CLIENTE))
+output.print_md("- Contrato: **{}**".format(CONTRACT_CODE))
+output.print_md("- Proveedor: **{}**".format(SUPPLIER))
+output.print_md("- Proyecto: **{}**".format(project_code_value))
+output.print_md("- Colegio (código): **{}**".format(institution_code_value))

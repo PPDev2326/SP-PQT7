@@ -5,7 +5,7 @@ from pyrevit import forms, revit
 from pyrevit.interop import xl
 
 class Excel:
-    def read_excel(hoja, encabezados=False):
+    def read_excel(self, hoja, encabezados=False):
         """
         Lee un archivo Excel.
 

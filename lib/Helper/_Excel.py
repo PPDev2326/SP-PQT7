@@ -21,9 +21,8 @@ class Excel:
             forms.alert("No se seleccionó ningún archivo.", exitscript=True)
             return []
         
-        datos = xl.load(ruta, headers=False)
-        print(type(datos))
-        print(datos.keys())
+        datos = xl.load(ruta, sheets=str(hoja), headers=encabezados)
+        filas = datos.get(str(hoja), {}).get('rows', [])
         
         return filas
     

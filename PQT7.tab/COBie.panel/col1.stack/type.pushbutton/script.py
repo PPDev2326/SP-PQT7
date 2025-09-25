@@ -62,7 +62,7 @@ if specialty_object:
 
 # ==== Obtenemos la hoja excel de acuerdo a la especialidad ====
 if specialty == "ARQUITECTURA":
-    excel = Excel().read_excel("ESTANDAR COBIE  -AR")
+    excel = Excel().read_excel("ESTANDAR COBIE -AR")
     print(excel)
 
 # ==== Obtenemos el colegio correspondiente segun modelo y sus datos necesarios ====

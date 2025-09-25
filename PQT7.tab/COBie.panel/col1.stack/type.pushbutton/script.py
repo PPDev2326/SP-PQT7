@@ -346,19 +346,14 @@ for type_id, type_data in element_types_data.items():
             if excel_param in datos_excel and datos_excel[excel_param] is not None:
                 valor_excel = datos_excel[excel_param]
                 
-                # Debug: Imprimir valor original del Excel
-                print("Procesando {}: valor original = '{}' (tipo: {})".format(excel_param, valor_excel, type(valor_excel)))
-                
-                # Convertir valores numéricos enteros
-                if excel_param in ["COBie.Type.WarrantyDurationParts", 
-                                 "COBie.Type.ExpectedLife"]:
+                # Convertir valores numéricos enteros (solo ExpectedLife)
+                if excel_param == "COBie.Type.ExpectedLife":
                     try:
                         if str(valor_excel).strip() != "":
                             valor_excel = int(float(valor_excel))
                         else:
                             valor_excel = None
                     except (ValueError, TypeError):
-                        print("Error convirtiendo {} a entero: {}".format(excel_param, valor_excel))
                         valor_excel = None
                 
                 # Parámetros de longitud - convertir de metros a unidades internas de Revit
@@ -369,11 +364,9 @@ for type_id, type_data in element_types_data.items():
                         if str(valor_excel).strip() != "":
                             valor_metros = float(valor_excel)
                             valor_excel = UnitUtils.ConvertToInternalUnits(valor_metros, UnitTypeId.Meters)
-                            print("Convertido {} de {} metros a {} unidades internas".format(excel_param, valor_metros, valor_excel))
                         else:
                             valor_excel = None
                     except (ValueError, TypeError):
-                        print("Error convirtiendo {} a longitud: {}".format(excel_param, valor_excel))
                         valor_excel = None
                 
                 elif excel_param == "COBie.Type.ReplacementCost":
@@ -383,23 +376,17 @@ for type_id, type_data in element_types_data.items():
                         else:
                             valor_excel = None
                     except (ValueError, TypeError):
-                        print("Error convirtiendo {} a decimal: {}".format(excel_param, valor_excel))
                         valor_excel = None
                 
-                # Parámetros de texto - verificar que no estén vacíos
+                # Todos los demás parámetros (incluido WarrantyDurationParts) son texto
                 else:
                     if str(valor_excel).strip() != "":
                         valor_excel = str(valor_excel).strip()
                     else:
                         valor_excel = None
                 
-                # Debug: Imprimir valor final
-                print("Valor final para {}: '{}' (tipo: {})".format(excel_param, valor_excel, type(valor_excel)))
-                
                 if valor_excel is not None:
                     parameters_shared[revit_param] = valor_excel
-                else:
-                    print("Valor nulo o vacío para {}, no se agregará".format(excel_param))
 
         # Agregar elemento preparado a la lista
         elementos_a_procesar.append({
@@ -437,16 +424,9 @@ with revit.Transaction("Transferencia COBie Type Masiva"):
                     try:
                         param = getParameter(element_type, param_name)
                         if param:
-                            # Debug: Mostrar información del parámetro antes de asignar
-                            storage_type = param.StorageType
-                            print("Asignando {} = '{}' (Storage: {})".format(param_name, value, storage_type))
-                            
                             SetParameter(param, value)
-                            print("✓ Asignado exitosamente: {} = '{}'".format(param_name, value))
-                        else:
-                            print("⚠ Parámetro no encontrado: {}".format(param_name))
                     except Exception as e:
-                        print("✗ Error estableciendo parámetro {} en tipo {}: {}".format(
+                        print("Error estableciendo parámetro {} en tipo {}: {}".format(
                             param_name, element_type.Id, str(e)))
 
             conteo += 1

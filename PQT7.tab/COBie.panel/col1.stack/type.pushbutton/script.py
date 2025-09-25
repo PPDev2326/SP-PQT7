@@ -115,7 +115,7 @@ except Exception as e:
     forms.alert("No se seleccionaron elementos o se produjo un error:\n\n" + str(e), exitscript=True)
 
 # ==== Obtenemos la hoja excel de acuerdo a la especialidad ====
-data_headers = None
+data_list = None
 
 if specialty == "ARQUITECTURA":
     excel_instance = Excel()
@@ -123,8 +123,6 @@ if specialty == "ARQUITECTURA":
     headers = excel_instance.get_headers(excel_rows, 2)
     headers_required = excel_instance.headers_required(headers, parametros_cobie)
     data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
-    # Convertir lista de diccionarios a diccionario de listas para compatibilidad
-    data_headers = {col: [row[col] for row in data_list] for col in parametros_cobie}
     print("Datos de Arquitectura cargados:", len(data_list), "filas")
 
 elif specialty == "INSTALACIONES SANITARIAS":
@@ -133,7 +131,6 @@ elif specialty == "INSTALACIONES SANITARIAS":
     headers = excel_instance.get_headers(excel_rows, 2)
     headers_required = excel_instance.headers_required(headers, parametros_cobie)
     data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
-    data_headers = {col: [row[col] for row in data_list] for col in parametros_cobie}
     print("Datos de Sanitarias cargados:", len(data_list), "filas")
 
 elif specialty == "INSTALACIONES ELECTRICAS":
@@ -142,7 +139,6 @@ elif specialty == "INSTALACIONES ELECTRICAS":
     headers = excel_instance.get_headers(excel_rows, 2)
     headers_required = excel_instance.headers_required(headers, parametros_cobie)
     data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
-    data_headers = {col: [row[col] for row in data_list] for col in parametros_cobie}
     print("Datos de Eléctricas cargados:", len(data_list), "filas")
 
 elif specialty == "COMUNICACIONES":
@@ -151,7 +147,6 @@ elif specialty == "COMUNICACIONES":
     headers = excel_instance.get_headers(excel_rows, 2)
     headers_required = excel_instance.headers_required(headers, parametros_cobie)
     data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
-    data_headers = {col: [row[col] for row in data_list] for col in parametros_cobie}
     print("Datos de Comunicaciones cargados:", len(data_list), "filas")
 
 elif specialty == "INSTALACIONES MECANICAS":
@@ -160,19 +155,38 @@ elif specialty == "INSTALACIONES MECANICAS":
     headers = excel_instance.get_headers(excel_rows, 2)
     headers_required = excel_instance.headers_required(headers, parametros_cobie)
     data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
-    data_headers = {col: [row[col] for row in data_list] for col in parametros_cobie}
     print("Datos de Mecánicas cargados:", len(data_list), "filas")
 
 else:
     forms.alert("Especialidad '{}' no reconocida para cargar datos Excel.".format(specialty), exitscript=True)
 
-if not data_headers:
+if not data_list:
     forms.alert("No se pudieron cargar los datos del Excel.", exitscript=True)
+
+# ==== Función para buscar datos del Excel por código ====
+def buscar_datos_por_codigo(data_list, codigo_elemento):
+    """
+    Busca los datos del Excel que coincidan con el código del elemento.
+    
+    :param data_list: Lista de diccionarios con los datos del Excel.
+    :type data_list: list
+    :param codigo_elemento: Código del elemento de Revit.
+    :type codigo_elemento: str
+    :return: Diccionario con los datos encontrados o None si no encuentra.
+    :rtype: dict or None
+    """
+    if not data_list:
+        return None
+    
+    for row_data in data_list:
+        codigo_excel = row_data.get("CODIGO")
+        if codigo_excel and str(codigo_excel).strip() == str(codigo_elemento).strip():
+            return row_data
+    
+    return None
 
 # ==== Mapeo de parámetros Excel -> Revit ====
 param_mapping = {
-    "CODIGO": "S&P_CODIGO DE ELEMENTO",  # Mapeo especial para comparación
-    # Los demás parámetros tienen el mismo nombre
     "COBie.Type.Manufacturer": "COBie.Type.Manufacturer",
     "COBie.Type.ModelNumber": "COBie.Type.ModelNumber",
     "COBie.Type.WarrantyDurationParts": "COBie.Type.WarrantyDurationParts",
@@ -187,45 +201,40 @@ param_mapping = {
     "COBie.Type.Constituents": "COBie.Type.Constituents"
 }
 
-# ==== Función para buscar datos del Excel por código ====
-def buscar_datos_por_codigo(data_headers, codigo_elemento):
-    """
-    Busca los datos del Excel que coincidan con el código del elemento.
-    
-    :param data_headers: Datos del Excel organizados por headers {columna: [valores]}.
-    :type data_headers: dict
-    :param codigo_elemento: Código del elemento de Revit.
-    :type codigo_elemento: str
-    :return: Diccionario con los datos encontrados o None si no encuentra.
-    :rtype: dict or None
-    """
-    if not data_headers or "CODIGO" not in data_headers:
-        return None
-    
-    # Buscar en qué fila está el código
-    codigos_excel = data_headers["CODIGO"]
-    for row_index, codigo_excel in enumerate(codigos_excel):
-        if codigo_excel and str(codigo_excel).strip() == str(codigo_elemento).strip():
-            # Encontrado, extraer todos los datos de esa fila
-            datos_encontrados = {}
-            for header, values in data_headers.items():
-                if row_index < len(values):
-                    datos_encontrados[header] = values[row_index]
-                else:
-                    datos_encontrados[header] = None
-            return datos_encontrados
-    
-    return None
-
-element_types = dict()  # type_id_int -> element_type
+# ==== Procesamiento: Instancia → Tipo ====
+# Diccionario para almacenar: {type_id: {codigo, element_type, instancias}}
+element_types_data = {}
 
 for element in selection:
-    # Procesar el tipo del elemento principal
+    # ==== Obtener código de la INSTANCIA ====
+    codigo_elemento = None
+    param_codigo = getParameter(element, "S&P_CODIGO DE ELEMENTO")
+    if param_codigo and param_codigo.HasValue:
+        codigo_elemento = param_codigo.AsString()
+    
+    if not codigo_elemento or not codigo_elemento.strip():
+        print("Instancia {} no tiene código válido, se omite".format(element.Id))
+        continue
+    
+    # ==== Obtener el TIPO del elemento ====
     type_elem = doc.GetElement(element.GetTypeId())
-    if type_elem:
-        element_types[type_elem.Id.IntegerValue] = type_elem
-
-    # Procesar tipos de subcomponentes (si existen)
+    if not type_elem:
+        print("No se pudo obtener el tipo para instancia {}".format(element.Id))
+        continue
+    
+    type_id = type_elem.Id.IntegerValue
+    
+    # Almacenar o actualizar información del tipo
+    if type_id not in element_types_data:
+        element_types_data[type_id] = {
+            "codigo": codigo_elemento,
+            "element_type": type_elem,
+            "instancias": []
+        }
+    
+    element_types_data[type_id]["instancias"].append(element.Id)
+    
+    # Procesar subcomponentes si es FamilyInstance
     if isinstance(element, FamilyInstance):
         try:
             for sc_id in element.GetSubComponentIds():
@@ -233,19 +242,32 @@ for element in selection:
                 if sub:
                     type_sub = doc.GetElement(sub.GetTypeId())
                     if type_sub:
-                        element_types[type_sub.Id.IntegerValue] = type_sub
+                        sub_type_id = type_sub.Id.IntegerValue
+                        if sub_type_id not in element_types_data:
+                            element_types_data[sub_type_id] = {
+                                "codigo": codigo_elemento,  # Usar el mismo código de la instancia padre
+                                "element_type": type_sub,
+                                "instancias": []
+                            }
+                        element_types_data[sub_type_id]["instancias"].append(sub.Id)
         except Exception as e:
-            print("Error procesando subcomponentes: " + str(e))
+            print("Error procesando subcomponentes de {}: {}".format(element.Id, str(e)))
 
-if not element_types:
-    forms.alert("No se encontraron tipos de elementos válidos en la selección.", exitscript=True)
+if not element_types_data:
+    forms.alert("No se encontraron elementos válidos con códigos.", exitscript=True)
 
-# ==== Proceso COBie.Type optimizado ====
+print("Elementos agrupados por tipo:", len(element_types_data))
+
+# ==== Proceso COBie.Type con datos del Excel ====
 conteo = 0
 elementos_omitidos = 0
+codigos_no_encontrados = []
 
 with revit.Transaction("Transferencia COBie Type con Excel"):
-    for type_id, element_type in element_types.items():
+    for type_id, type_data in element_types_data.items():
+        element_type = type_data["element_type"]
+        codigo_elemento = type_data["codigo"]
+        instancias = type_data["instancias"]
         
         # Verificar si el elemento debe procesarse
         param_cobie_type = getParameter(element_type, "COBie.Type")
@@ -254,28 +276,20 @@ with revit.Transaction("Transferencia COBie Type con Excel"):
             continue
         
         try:
-            # ==== Obtener el código del elemento ====
-            codigo_elemento = None
-            param_codigo = getParameter(element_type, "S&P_CODIGO DE ELEMENTO")
-            if param_codigo and param_codigo.HasValue:
-                codigo_elemento = param_codigo.AsString()
-            
-            if not codigo_elemento:
-                print("Elemento tipo {} no tiene código, se omite".format(element_type.Id))
-                elementos_omitidos += 1
-                continue
-            
             # ==== Buscar datos en Excel ====
-            datos_excel = buscar_datos_por_codigo(data_headers, codigo_elemento)
+            datos_excel = buscar_datos_por_codigo(data_list, codigo_elemento)
             
             if not datos_excel:
-                print("No se encontraron datos en Excel para código: {}".format(codigo_elemento))
+                if codigo_elemento not in codigos_no_encontrados:
+                    codigos_no_encontrados.append(codigo_elemento)
+                    print("No se encontraron datos en Excel para código: {}".format(codigo_elemento))
                 elementos_omitidos += 1
                 continue
             
-            print("Procesando elemento con código: {}".format(codigo_elemento))
+            print("Procesando tipo {} con código: {} ({} instancias)".format(
+                element_type.Id, codigo_elemento, len(instancias)))
             
-            # ==== Obtener datos del elemento ====
+            # ==== Obtener datos del elemento tipo ====
             category_object = element_type.Category
             category_name = category_object.Name if category_object else "Sin Categoría"
             
@@ -310,7 +324,7 @@ with revit.Transaction("Transferencia COBie Type con Excel"):
             if param_pr_desc and param_pr_desc.HasValue:
                 pr_desc = param_pr_desc.AsString() or ""
 
-            # ==== Parámetros compartidos ====
+            # ==== Parámetros compartidos (base) ====
             parameters_shared = {
                 "COBie.Type.Name": "{} : {} : {}".format(category_name, fam_name, param_name_value),
                 "COBie.Type.Category": "{} : {}".format(pr_number, pr_desc),
@@ -324,9 +338,6 @@ with revit.Transaction("Transferencia COBie Type con Excel"):
             
             # ==== Agregar parámetros del Excel ====
             for excel_param, revit_param in param_mapping.items():
-                if excel_param == "CODIGO":
-                    continue  # Ya se usó para la búsqueda
-                
                 if excel_param in datos_excel and datos_excel[excel_param] is not None:
                     valor_excel = datos_excel[excel_param]
                     
@@ -355,7 +366,7 @@ with revit.Transaction("Transferencia COBie Type con Excel"):
                     if valor_excel is not None:
                         parameters_shared[revit_param] = valor_excel
 
-            # ==== Aplicar todos los parámetros ====
+            # ==== Aplicar todos los parámetros al TIPO ====
             for param_name, value in parameters_shared.items():
                 if value is not None:
                     try:
@@ -372,10 +383,12 @@ with revit.Transaction("Transferencia COBie Type con Excel"):
             elementos_omitidos += 1
 
 # Mostrar resultados detallados
-total_tipos = len(element_types)
+total_tipos = len(element_types_data)
 mensaje = "Procesamiento completado:\n"
 mensaje += "• Total de tipos encontrados: {}\n".format(total_tipos)
 mensaje += "• Tipos procesados exitosamente: {}\n".format(conteo)
-mensaje += "• Tipos omitidos: {}".format(elementos_omitidos)
+mensaje += "• Tipos omitidos: {}\n".format(elementos_omitidos)
+if codigos_no_encontrados:
+    mensaje += "• Códigos no encontrados en Excel: {}\n".format(len(set(codigos_no_encontrados)))
 
 TaskDialog.Show("Resultado del Proceso", mensaje)

@@ -146,7 +146,7 @@ NO_APLICA = "n/a"
 
 # ==== Instanciamos el tipo ColegiosRepository y sus propiedades ====
 school_instance = ColegiosRepository()
-school_object = school_instance.codigo_colegio()
+school_object = school_instance.codigo_colegio(doc)
 maintenance_manual_value = None
 replacement_date_value = None
 document_reference_value = None

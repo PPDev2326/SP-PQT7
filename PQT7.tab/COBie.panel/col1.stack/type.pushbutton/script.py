@@ -134,7 +134,7 @@ parameters_static = {
 if specialty == "ARQUITECTURA":
     excel_instance = Excel()
     excel_rows = excel_instance.read_excel('ESTANDAR COBIE  -AR')
-    headers = Excel.get_headers(excel_rows, 2)
+    headers = excel_instance.get_headers(excel_rows, 2)
     print(headers)
 
 # element_types = dict()  # type_id_int -> element_type

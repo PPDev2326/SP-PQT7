@@ -22,7 +22,7 @@ class Excel:
             return []
         
         datos = xl.load(ruta, sheets=str(hoja), headers=encabezados)
-        filas = datos.get(str(hoja), {}).get('rows', [])
+        filas = datos.get(hoja, {}).get('rows', [])
         
         return filas
     

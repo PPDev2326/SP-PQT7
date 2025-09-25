@@ -284,9 +284,8 @@ for type_id, type_data in element_types_data.items():
     
     # Actualizar progress bar
     current_step += 1
-    progress_percent = float(current_step) / float(total_types)
     
-    if not pb.update_progress(progress_percent, current_step, total_types):
+    if not pb.update_progress(current_step, total_types):
         pb.close()
         forms.alert("Proceso cancelado por el usuario.", exitscript=True)
     
@@ -411,9 +410,8 @@ with revit.Transaction("Transferencia COBie Type Masiva"):
     for elemento_data in elementos_a_procesar:
         # Actualizar progress bar
         current_element += 1
-        progress_percent = float(current_element) / float(total_elements)
         
-        if not pb.update_progress(progress_percent, current_element, total_elements):
+        if not pb.update_progress(current_element, total_elements):
             pb.close()
             forms.alert("Proceso cancelado por el usuario. Elementos procesados hasta el momento: {}".format(conteo))
             break

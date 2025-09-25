@@ -5,7 +5,6 @@ import re
 from Autodesk.Revit.DB import BuiltInParameter, StorageType, UnitUtils, UnitTypeId, FamilyInstance, ElementType
 from Autodesk.Revit.UI import TaskDialog
 from pyrevit import script, revit, forms
-from pyrevit.forms import ProgressBar
 from Extensions._RevitAPI import getParameter, GetParameterAPI, SetParameter
 from DBRepositories.SpecialtiesRepository import SpecialtiesRepository
 from DBRepositories.SchoolRepository import ColegiosRepository
@@ -214,8 +213,6 @@ for element in selection:
         codigo_elemento = param_codigo.AsString()
     
     if not codigo_elemento or not codigo_elemento.strip():
-        # Solo imprimir si queremos debug detallado
-        # print("Instancia {} no tiene código válido, se omite".format(element.Id))
         continue
     
     # ==== Obtener el TIPO del elemento ====
@@ -390,26 +387,19 @@ for type_id, type_data in element_types_data.items():
         print("Error preparando elemento tipo {}: {}".format(element_type.Id, str(e)))
         elementos_omitidos += 1
 
-pb.close()
 print("Elementos preparados para procesamiento: {}".format(len(elementos_a_procesar)))
 
 # Fase 2: Transaction en masa para aplicar parámetros
 print("Iniciando transaction en masa...")
 
 with revit.Transaction("Transferencia COBie Type Masiva"):
-    pb = ProgressBar(title="Aplicando parámetros COBie...", cancellable=True)
-    
     current_element = 0
     total_elements = len(elementos_a_procesar)
     
     for elemento_data in elementos_a_procesar:
-        # Actualizar progress bar
         current_element += 1
-        
-        if not pb.update_progress(current_element, total_elements):
-            pb.close()
-            forms.alert("Proceso cancelado por el usuario. Elementos procesados hasta el momento: {}".format(conteo))
-            break
+        if current_element % 10 == 0 or current_element == total_elements:
+            print("Aplicando: {} de {}".format(current_element, total_elements))
         
         element_type = elemento_data["element_type"]
         parameters_shared = elemento_data["parameters"]
@@ -433,8 +423,6 @@ with revit.Transaction("Transferencia COBie Type Masiva"):
         except Exception as e:
             print("Error procesando elemento tipo {}: {}".format(element_type.Id, str(e)))
             elementos_omitidos += 1
-
-    pb.close()
 
 # Mostrar resultados detallados
 total_tipos = len(element_types_data)

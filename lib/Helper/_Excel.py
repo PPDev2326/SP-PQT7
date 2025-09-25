@@ -26,18 +26,16 @@ class Excel:
         
         return filas
     
-    def get_headers(rows, start_row = 0):
+    def get_headers(self, rows, start_row = 0):
         """
         Busca los encabezados en las filas y retorna los índices de las columnas.
         
-        Args:
-            row (list): Lista de filas del Excel
-            required_column (dict): Diccionario con nombres lógicos y posibles nombres de columnas
-            start_row (int): Fila desde donde empezar a buscar encabezados (default: 0)
-            max_row_send (int): Máximo número de filas a revisar (default: 2)
-        
-        Returns:
-            dict: Diccionario con los índices de las columnas encontradas con valor.
+        :param rows: Lista de filas del Excel.
+        :type rows: list
+        :param start_row: Indice que decidira los encabezados.
+        :type start_row: int, optional, default 0
+        :return: Diccionario con los índices de las columnas encontradas con valor.
+        :rtype: dict
         """
         if len(rows) <= start_row:
             forms.alert("El archivo no tiene suficientes filas para contener encabezados en la fila {}.".format(start_row + 1), exitscript=True)
@@ -51,7 +49,7 @@ class Excel:
                 headers_dict[idx] = h
         return headers_dict
     
-    def headers_required(headers, columns_name):
+    def headers_required(self, headers, columns_name):
         """
         Filtra los encabezados encontrados y retorna solo los que están en columns_name.
         
@@ -73,7 +71,7 @@ class Excel:
             found[col] = idx
         return found
     
-    def get_data_by_headers_required(rows_data, columns_required, start_data=1):
+    def get_data_by_headers_required(self, rows_data, columns_required, start_data=1):
         """
         Obtiene los datos del Excel basados en los encabezados requeridos.
         

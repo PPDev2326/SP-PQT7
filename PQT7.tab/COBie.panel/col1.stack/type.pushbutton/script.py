@@ -60,12 +60,6 @@ if specialty_object:
     sp_sustainability = specialty_object.sustainability
     sp_feature = specialty_object.feature
 
-# ==== Obtenemos la hoja excel de acuerdo a la especialidad ====
-if specialty == "ARQUITECTURA":
-    excel_instance = Excel()
-    excel = excel_instance.read_excel('ESTANDAR COBIE  -AR')
-    print(excel)
-
 # ==== Obtenemos el colegio correspondiente segun modelo y sus datos necesarios ====
 repo_schools = ColegiosRepository()
 school_object = repo_schools.codigo_colegio(doc)
@@ -129,122 +123,129 @@ parameters_static = {
 }
 
 # ==== Selección y preparación ====
-try:
-    selection = uidoc.Selection.PickElementsByRectangle()
-    if not selection:
-        forms.alert("No se seleccionaron elementos.", exitscript=True)
-except Exception as e:
-    forms.alert("No se seleccionaron elementos o se produjo un error:\n\n" + str(e), exitscript=True)
+# try:
+#     selection = uidoc.Selection.PickElementsByRectangle()
+#     if not selection:
+#         forms.alert("No se seleccionaron elementos.", exitscript=True)
+# except Exception as e:
+#     forms.alert("No se seleccionaron elementos o se produjo un error:\n\n" + str(e), exitscript=True)
 
-element_types = dict()  # type_id_int -> element_type
+# ==== Obtenemos la hoja excel de acuerdo a la especialidad ====
+if specialty == "ARQUITECTURA":
+    excel_instance = Excel()
+    excel_rows = excel_instance.read_excel('ESTANDAR COBIE  -AR')
+    headers = Excel.get_headers(excel_rows, 2)
+    print(headers)
 
-for element in selection:
-    # Procesar el tipo del elemento principal
-    type_elem = doc.GetElement(element.GetTypeId())
-    if type_elem:
-        element_types[type_elem.Id.IntegerValue] = type_elem
+# element_types = dict()  # type_id_int -> element_type
 
-    # Procesar tipos de subcomponentes (si existen)
-    if isinstance(element, FamilyInstance):
-        try:
-            for sc_id in element.GetSubComponentIds():
-                sub = doc.GetElement(sc_id)
-                if sub:
-                    type_sub = doc.GetElement(sub.GetTypeId())
-                    if type_sub:
-                        element_types[type_sub.Id.IntegerValue] = type_sub
-        except Exception as e:
-            print("Error procesando subcomponentes: " + str(e))
+# for element in selection:
+#     # Procesar el tipo del elemento principal
+#     type_elem = doc.GetElement(element.GetTypeId())
+#     if type_elem:
+#         element_types[type_elem.Id.IntegerValue] = type_elem
 
-if not element_types:
-    forms.alert("No se encontraron tipos de elementos válidos en la selección.", exitscript=True)
+#     # Procesar tipos de subcomponentes (si existen)
+#     if isinstance(element, FamilyInstance):
+#         try:
+#             for sc_id in element.GetSubComponentIds():
+#                 sub = doc.GetElement(sc_id)
+#                 if sub:
+#                     type_sub = doc.GetElement(sub.GetTypeId())
+#                     if type_sub:
+#                         element_types[type_sub.Id.IntegerValue] = type_sub
+#         except Exception as e:
+#             print("Error procesando subcomponentes: " + str(e))
 
-# ==== Proceso COBie.Type optimizado ====
-conteo = 0
-elementos_omitidos = 0
+# if not element_types:
+#     forms.alert("No se encontraron tipos de elementos válidos en la selección.", exitscript=True)
 
-with revit.Transaction("Transferencia COBie Type Optimizada"):
-    for type_id, element_type in element_types.items():
+# # ==== Proceso COBie.Type optimizado ====
+# conteo = 0
+# elementos_omitidos = 0
+
+# with revit.Transaction("Transferencia COBie Type Optimizada"):
+#     for type_id, element_type in element_types.items():
         
-        # Verificar si el elemento debe procesarse
-        param_cobie_type = getParameter(element_type, "COBie.Type")
-        if not (param_cobie_type and param_cobie_type.StorageType == StorageType.Integer and param_cobie_type.AsInteger() == 1):
-            elementos_omitidos += 1
-            continue
+#         # Verificar si el elemento debe procesarse
+#         param_cobie_type = getParameter(element_type, "COBie.Type")
+#         if not (param_cobie_type and param_cobie_type.StorageType == StorageType.Integer and param_cobie_type.AsInteger() == 1):
+#             elementos_omitidos += 1
+#             continue
         
-        try:
-            # ==== Obtenemos la categoria del elemento de tipo ====
-            category_object = element_type.Category
-            category_name = category_object.Name if category_object else "Sin Categoría"
+#         try:
+#             # ==== Obtenemos la categoria del elemento de tipo ====
+#             category_object = element_type.Category
+#             category_name = category_object.Name if category_object else "Sin Categoría"
             
-            # ==== Obtenemos el nombre de la familia del elemento ====
-            fam_name = "Sin Familia"
-            if isinstance(element_type, ElementType):
-                fam_name = element_type.FamilyName
+#             # ==== Obtenemos el nombre de la familia del elemento ====
+#             fam_name = "Sin Familia"
+#             if isinstance(element_type, ElementType):
+#                 fam_name = element_type.FamilyName
             
-            # ==== Obtenemos el tipo del elemento seleccionado ====
-            param_name_value = "Sin Nombre"
-            object_param_name = GetParameterAPI(element_type, BuiltInParameter.SYMBOL_NAME_PARAM)
-            if object_param_name:
-                param_name_value = object_param_name.AsString() or "Sin Nombre"
+#             # ==== Obtenemos el tipo del elemento seleccionado ====
+#             param_name_value = "Sin Nombre"
+#             object_param_name = GetParameterAPI(element_type, BuiltInParameter.SYMBOL_NAME_PARAM)
+#             if object_param_name:
+#                 param_name_value = object_param_name.AsString() or "Sin Nombre"
             
-            # ==== el parametro Descripción ====
-            param_desc_value = "Sin Descripción"
-            object_param_desc = getParameter(element_type, "Descripción")
-            if object_param_desc and object_param_desc.HasValue:
-                param_desc_value = object_param_desc.AsString() or "Sin Descripción"
+#             # ==== el parametro Descripción ====
+#             param_desc_value = "Sin Descripción"
+#             object_param_desc = getParameter(element_type, "Descripción")
+#             if object_param_desc and object_param_desc.HasValue:
+#                 param_desc_value = object_param_desc.AsString() or "Sin Descripción"
             
-            # ==== Obtenemos el parámetro material ====
-            param_name_material = "Sin Material"
-            object_param_material = getParameter(element_type, "S&P_MATERIAL DE ELEMENTO")
-            if object_param_material and object_param_material.HasValue:
-                param_name_material = object_param_material.AsString() or "Sin Material"
+#             # ==== Obtenemos el parámetro material ====
+#             param_name_material = "Sin Material"
+#             object_param_material = getParameter(element_type, "S&P_MATERIAL DE ELEMENTO")
+#             if object_param_material and object_param_material.HasValue:
+#                 param_name_material = object_param_material.AsString() or "Sin Material"
             
-            # ==== Obtenemos las medidas de las familias o tipos de los elementos seleccionados ====
-            medidas = extraer_medida(param_name_value)
+#             # ==== Obtenemos las medidas de las familias o tipos de los elementos seleccionados ====
+#             medidas = extraer_medida(param_name_value)
             
-            # ==== Obtenemos clasificación Uniclass ====
-            param_pr_number = getParameter(element_type, "Classification.Uniclass.Pr.Number")
-            param_pr_desc = getParameter(element_type, "Classification.Uniclass.Pr.Description")
+#             # ==== Obtenemos clasificación Uniclass ====
+#             param_pr_number = getParameter(element_type, "Classification.Uniclass.Pr.Number")
+#             param_pr_desc = getParameter(element_type, "Classification.Uniclass.Pr.Description")
             
-            pr_number = ""
-            pr_desc = ""
-            if param_pr_number and param_pr_number.HasValue:
-                pr_number = param_pr_number.AsString() or ""
-            if param_pr_desc and param_pr_desc.HasValue:
-                pr_desc = param_pr_desc.AsString() or ""
+#             pr_number = ""
+#             pr_desc = ""
+#             if param_pr_number and param_pr_number.HasValue:
+#                 pr_number = param_pr_number.AsString() or ""
+#             if param_pr_desc and param_pr_desc.HasValue:
+#                 pr_desc = param_pr_desc.AsString() or ""
 
-            parameters_shared = {
-                "COBie.Type.Name": "{} : {} : {}".format(category_name, fam_name, param_name_value),
-                "COBie.Type.Category": "{} : {}".format(pr_number, pr_desc),
-                "COBie.Type.Description": param_desc_value,
-                "COBie.Type.Size": medidas,
-                "COBie.Type.Material": param_name_material
-            }
+#             parameters_shared = {
+#                 "COBie.Type.Name": "{} : {} : {}".format(category_name, fam_name, param_name_value),
+#                 "COBie.Type.Category": "{} : {}".format(pr_number, pr_desc),
+#                 "COBie.Type.Description": param_desc_value,
+#                 "COBie.Type.Size": medidas,
+#                 "COBie.Type.Material": param_name_material
+#             }
 
-            parameters_shared.update(parameters_static)
+#             parameters_shared.update(parameters_static)
 
-            # Aplicar parámetros
-            for param_n, value in parameters_shared.items():
-                if value is not None:  # Solo aplicar si hay valor
-                    try:
-                        param = getParameter(element_type, param_n)
-                        if param:
-                            SetParameter(param, value)
-                    except Exception as e:
-                        print("Error estableciendo parámetro {}: {}".format(param_n, str(e)))
+#             # Aplicar parámetros
+#             for param_n, value in parameters_shared.items():
+#                 if value is not None:  # Solo aplicar si hay valor
+#                     try:
+#                         param = getParameter(element_type, param_n)
+#                         if param:
+#                             SetParameter(param, value)
+#                     except Exception as e:
+#                         print("Error estableciendo parámetro {}: {}".format(param_n, str(e)))
 
-            conteo += 1
+#             conteo += 1
             
-        except Exception as e:
-            print("Error procesando elemento tipo {}: {}".format(element_type.Id, str(e)))
-            elementos_omitidos += 1
+#         except Exception as e:
+#             print("Error procesando elemento tipo {}: {}".format(element_type.Id, str(e)))
+#             elementos_omitidos += 1
 
-# Mostrar resultados detallados
-total_tipos = len(element_types)
-mensaje = "Procesamiento completado:\n"
-mensaje += "• Total de tipos encontrados: {}\n".format(total_tipos)
-mensaje += "• Tipos procesados exitosamente: {}\n".format(conteo)
-mensaje += "• Tipos omitidos: {}".format(elementos_omitidos)
+# # Mostrar resultados detallados
+# total_tipos = len(element_types)
+# mensaje = "Procesamiento completado:\n"
+# mensaje += "• Total de tipos encontrados: {}\n".format(total_tipos)
+# mensaje += "• Tipos procesados exitosamente: {}\n".format(conteo)
+# mensaje += "• Tipos omitidos: {}".format(elementos_omitidos)
 
-TaskDialog.Show("Resultado del Proceso", mensaje)
+# TaskDialog.Show("Resultado del Proceso", mensaje)

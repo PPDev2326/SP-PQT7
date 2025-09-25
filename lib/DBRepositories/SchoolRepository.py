@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 # repositories/colegios_repository.py
+from Autodesk.Revit.DB import Document
 from Models._Colegio import Colegio
 from DBRepositories.ISchoolRepository import ISchoolDBRepository
 
@@ -16,11 +17,10 @@ class ColegiosRepository(ISchoolDBRepository):
         """
         Obtiene un objeto de tipo _Colegio mediante el documento del modelo.
         
-        Args:
-            document (Document): Tipo Document del modelo revit
-            
-        Returns:
-            _Colegio: Retorna tipo _Colegio
+        :param document: Tipo Document del modelo revit
+        :type document: Document
+        :return: Retorna un tipo Colegio del documento buscado
+        :rtype: Colegio
         """
         if not document:
             return None

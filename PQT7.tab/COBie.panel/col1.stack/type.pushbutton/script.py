@@ -359,16 +359,19 @@ for type_id, type_data in element_types_data.items():
                     except (ValueError, TypeError):
                         valor_excel = None
                 
-                elif excel_param in ["COBie.Type.ReplacementCost",
-                                   "COBie.Type.NominalLength",
+                elif excel_param in ["COBie.Type.NominalLength",
                                    "COBie.Type.NominalWidth", 
                                    "COBie.Type.NominalHeight"]:
                     try:
-                        if excel_param.startswith("COBie.Type.Nominal"):
-                            # Convertir a unidades internas de Revit (pies)
-                            valor_excel = UnitUtils.ConvertToInternalUnits(float(valor_excel), UnitTypeId.Meters) if valor_excel else None
-                        else:
-                            valor_excel = float(valor_excel) if valor_excel else None
+                        # Convertir dimensiones de metros a unidades internas de Revit (pies)
+                        valor_excel = UnitUtils.ConvertToInternalUnits(float(valor_excel), UnitTypeId.Meters) if valor_excel else None
+                    except (ValueError, TypeError):
+                        valor_excel = None
+                
+                elif excel_param == "COBie.Type.ReplacementCost":
+                    try:
+                        # Costo en divisa - mantener como número decimal sin conversión de unidades
+                        valor_excel = float(valor_excel) if valor_excel else None
                     except (ValueError, TypeError):
                         valor_excel = None
                 

@@ -5,6 +5,7 @@ import re
 from Autodesk.Revit.DB import BuiltInParameter, StorageType, UnitUtils, UnitTypeId, FamilyInstance, ElementType
 from Autodesk.Revit.UI import TaskDialog
 from pyrevit import script, revit, forms
+from pyrevit.forms import ProgressBar
 from Extensions._RevitAPI import getParameter, GetParameterAPI, SetParameter
 from DBRepositories.SpecialtiesRepository import SpecialtiesRepository
 from DBRepositories.SchoolRepository import ColegiosRepository

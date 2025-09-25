@@ -23,6 +23,7 @@ parametros_cobie = [
         "COBie.Type.Color",
         "COBie.Type.Finish",
         "COBie.Type.Constituents",
+        "COBie.Type.Description",  # Agregado aquí
         "CODIGO"  # Columna identificadora
     ]
 
@@ -198,7 +199,8 @@ param_mapping = {
     "COBie.Type.NominalHeight": "COBie.Type.NominalHeight",
     "COBie.Type.Color": "COBie.Type.Color",
     "COBie.Type.Finish": "COBie.Type.Finish",
-    "COBie.Type.Constituents": "COBie.Type.Constituents"
+    "COBie.Type.Constituents": "COBie.Type.Constituents",
+    "COBie.Type.Description": "COBie.Type.Description"  # Agregado aquí
 }
 
 # ==== Procesamiento: Instancia → Tipo ====
@@ -311,11 +313,6 @@ for type_id, type_data in element_types_data.items():
         if object_param_name:
             param_name_value = object_param_name.AsString() or "Sin Nombre"
         
-        param_desc_value = "Sin Descripción"
-        object_param_desc = getParameter(element_type, "Descripción")
-        if object_param_desc and object_param_desc.HasValue:
-            param_desc_value = object_param_desc.AsString() or "Sin Descripción"
-        
         param_name_material = "Sin Material"
         object_param_material = getParameter(element_type, "S&P_MATERIAL DE ELEMENTO")
         if object_param_material and object_param_material.HasValue:
@@ -337,7 +334,6 @@ for type_id, type_data in element_types_data.items():
         parameters_shared = {
             "COBie.Type.Name": "{} : {} : {}".format(category_name, fam_name, param_name_value),
             "COBie.Type.Category": "{} : {}".format(pr_number, pr_desc),
-            "COBie.Type.Description": param_desc_value,
             "COBie.Type.Size": medidas,
             "COBie.Type.Material": param_name_material
         }
@@ -350,20 +346,23 @@ for type_id, type_data in element_types_data.items():
             if excel_param in datos_excel and datos_excel[excel_param] is not None:
                 valor_excel = datos_excel[excel_param]
                 
-                # Convertir valores numéricos si es necesario
+                # Convertir valores numéricos si es necesario (solo para WarrantyDurationParts y ExpectedLife)
                 if excel_param in ["COBie.Type.WarrantyDurationParts", 
-                                 "COBie.Type.WarrantyDurationLabor", 
                                  "COBie.Type.ExpectedLife"]:
                     try:
                         valor_excel = int(float(valor_excel)) if valor_excel else None
                     except (ValueError, TypeError):
                         valor_excel = None
                 
+                # WarrantyDurationLabor ahora es texto, no convertir
+                elif excel_param == "COBie.Type.WarrantyDurationLabor":
+                    valor_excel = str(valor_excel) if valor_excel else None
+                
+                # Parámetros de longitud - convertir de metros a unidades internas de Revit (pies)
                 elif excel_param in ["COBie.Type.NominalLength",
                                    "COBie.Type.NominalWidth", 
                                    "COBie.Type.NominalHeight"]:
                     try:
-                        # Convertir dimensiones de metros a unidades internas de Revit (pies)
                         valor_excel = UnitUtils.ConvertToInternalUnits(float(valor_excel), UnitTypeId.Meters) if valor_excel else None
                     except (ValueError, TypeError):
                         valor_excel = None
@@ -374,6 +373,10 @@ for type_id, type_data in element_types_data.items():
                         valor_excel = float(valor_excel) if valor_excel else None
                     except (ValueError, TypeError):
                         valor_excel = None
+                
+                # Los demás parámetros (texto) se mantienen como string
+                else:
+                    valor_excel = str(valor_excel) if valor_excel else None
                 
                 if valor_excel is not None:
                     parameters_shared[revit_param] = valor_excel

@@ -271,23 +271,19 @@ elementos_a_procesar = []
 # Fase 1: Preparación de datos sin transaction
 print("Preparando datos para procesamiento en masa...")
 
-# ProgressBar para preparación
-pb = ProgressBar(title="Preparando elementos para COBie...", cancellable=True)
-
 current_step = 0
 total_types = len(element_types_data)
 
-for type_id, type_data in element_types_data.items():
-    element_type = type_data["element_type"]
-    codigo_elemento = type_data["codigo"]
-    instancias = type_data["instancias"]
-    
-    # Actualizar progress bar
-    current_step += 1
-    
-    if not pb.update_progress(current_step, total_types):
-        pb.close()
-        forms.alert("Proceso cancelado por el usuario.", exitscript=True)
+# ProgressBar para preparación
+with ProgressBar(title="Preparando elementos para COBie...") as pb:
+    for type_id, type_data in element_types_data.items():
+        element_type = type_data["element_type"]
+        codigo_elemento = type_data["codigo"]
+        instancias = type_data["instancias"]
+        
+        # Actualizar progress bar
+        current_step += 1
+        pb.update_progress(current_step, total_types)
     
     # Verificar si el elemento debe procesarse
     param_cobie_type = getParameter(element_type, "COBie.Type")

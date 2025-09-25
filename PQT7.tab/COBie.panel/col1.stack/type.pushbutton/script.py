@@ -136,7 +136,7 @@ if specialty == "ARQUITECTURA":
     excel_rows = excel_instance.read_excel('ESTANDAR COBIE  -AR')
     headers = excel_instance.get_headers(excel_rows, 2)
     headers_required = excel_instance.headers_required(headers, parametros_cobie)
-    data_headers = excel_instance.get_data_by_headers_required(excel_rows, parametros_cobie, 3)
+    data_headers = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
     print(headers_required)
 
 # element_types = dict()  # type_id_int -> element_type

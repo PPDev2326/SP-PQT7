@@ -16,13 +16,23 @@ doc = revit.doc
 def extract_number_nivel(nivel):
     """Extrae el número del nivel o devuelve TECHO si corresponde.
     Si no encuentra nada devuelve '0' como valor seguro.
+    Si el nivel es 'n/a', se devuelve tal cual.
     """
     if not nivel:
         return "0"
+    
     nivel = nivel.strip().upper()
+    
+    # Si explícitamente es n/a → devolver n/a
+    if nivel == "N/A":
+        return "n/a"
+    
+    # Si es TECHO → devolver TECHO
     if "TECHO" in nivel:
         return "TECHO"
-    match = re.search(r"-?\d+", nivel)  # Captura números positivos o negativos
+    
+    # Si hay número → devolver número
+    match = re.search(r"-?\d+", nivel)
     return match.group(0) if match else "0"
 
 

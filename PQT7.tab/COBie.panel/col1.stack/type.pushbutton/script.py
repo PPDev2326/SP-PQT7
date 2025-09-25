@@ -107,6 +107,23 @@ parameters_static = {
     "COBie.Type.SustainabilityPerformance": sp_sustainability,
 }
 
+# ==== Opciones de procesamiento ====
+opciones = [
+    "Sobreescribir todos los parámetros",
+    "Solo llenar parámetros vacíos",
+    "Cancelar"
+]
+
+opcion_seleccionada = forms.CommandSwitchWindow.show(
+    opciones,
+    message="¿Cómo deseas manejar los parámetros que ya tienen información?"
+)
+
+if not opcion_seleccionada or opcion_seleccionada == "Cancelar":
+    script.exit()
+
+modo_sobreescribir = (opcion_seleccionada == "Sobreescribir todos los parámetros")
+
 # ==== Selección y preparación ====
 try:
     selection = uidoc.Selection.PickElementsByRectangle()
@@ -163,6 +180,36 @@ else:
 
 if not data_list:
     forms.alert("No se pudieron cargar los datos del Excel.", exitscript=True)
+
+# Función para verificar si un parámetro está vacío
+def parametro_esta_vacio(element, param_name):
+    """
+    Verifica si un parámetro está vacío o no tiene valor
+    
+    Args:
+        element: Elemento de Revit
+        param_name: Nombre del parámetro
+        
+    Returns:
+        True si el parámetro está vacío, False si tiene valor
+    """
+    try:
+        param = getParameter(element, param_name)
+        if not param or not param.HasValue:
+            return True
+        
+        # Verificar según el tipo de almacenamiento
+        if param.StorageType == StorageType.String:
+            valor = param.AsString()
+            return not valor or valor.strip() == ""
+        elif param.StorageType == StorageType.Double:
+            return param.AsDouble() == 0.0
+        elif param.StorageType == StorageType.Integer:
+            return param.AsInteger() == 0
+        else:
+            return True
+    except:
+        return True
 
 # ==== Función para buscar datos del Excel por código ====
 def buscar_datos_por_codigo(data_list, codigo_elemento):
@@ -409,19 +456,34 @@ with revit.Transaction("Transferencia COBie Type Masiva"):
         
         try:
             # ==== Aplicar todos los parámetros al TIPO ====
+            parametros_aplicados = 0
+            parametros_omitidos = 0
+            
             for param_name, value in parameters_shared.items():
                 if value is not None:
                     try:
                         param = getParameter(element_type, param_name)
                         if param:
-                            SetParameter(param, value)
+                            # Verificar si debemos aplicar el parámetro según el modo seleccionado
+                            debe_aplicar = modo_sobreescribir or parametro_esta_vacio(element_type, param_name)
+                            
+                            if debe_aplicar:
+                                SetParameter(param, value)
+                                parametros_aplicados += 1
+                            else:
+                                parametros_omitidos += 1
                     except Exception as e:
                         print("Error estableciendo parámetro {} en tipo {}: {}".format(
                             param_name, element_type.Id, str(e)))
 
             conteo += 1
-            print("Procesado tipo {} con código: {} ({} instancias)".format(
-                element_type.Id, elemento_data["codigo"], elemento_data["instancias"]))
+            if parametros_omitidos > 0:
+                print("Procesado tipo {} con código: {} ({} instancias) - Aplicados: {}, Omitidos: {}".format(
+                    element_type.Id, elemento_data["codigo"], elemento_data["instancias"], 
+                    parametros_aplicados, parametros_omitidos))
+            else:
+                print("Procesado tipo {} con código: {} ({} instancias) - Aplicados: {}".format(
+                    element_type.Id, elemento_data["codigo"], elemento_data["instancias"], parametros_aplicados))
             
         except Exception as e:
             print("Error procesando elemento tipo {}: {}".format(element_type.Id, str(e)))
@@ -430,6 +492,7 @@ with revit.Transaction("Transferencia COBie Type Masiva"):
 # Mostrar resultados detallados
 total_tipos = len(element_types_data)
 mensaje = "Procesamiento completado:\n"
+mensaje += "• Modo: {}\n".format(opcion_seleccionada)
 mensaje += "• Total de tipos encontrados: {}\n".format(total_tipos)
 mensaje += "• Tipos procesados exitosamente: {}\n".format(conteo)
 mensaje += "• Tipos omitidos: {}\n".format(elementos_omitidos)

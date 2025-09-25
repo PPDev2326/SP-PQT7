@@ -456,5 +456,5 @@ mensaje += "• Tipos procesados exitosamente: {}\n".format(conteo)
 mensaje += "• Tipos omitidos: {}\n".format(elementos_omitidos)
 if codigos_no_encontrados:
     mensaje += "• Códigos no encontrados en Excel: {}\n".format(len(set(codigos_no_encontrados)))
-
+#
 TaskDialog.Show("Resultado del Proceso", mensaje)

@@ -116,8 +116,8 @@ if specialty in ["INSTALACIONES SANITARIAS", "INSTALACIONES MECANICAS"]:
         return resultado
 
     with revit.Transaction("Completar COBie System"):
-        ductos = procesar_sistema(ductwork_system, "Ductos")
-        tuberias = procesar_sistema(pipe_system, "Tuberías")
+        ductos = procesar_sistema(ductwork_system, activo)
+        tuberias = procesar_sistema(pipe_system, activo)
 
     output = script.get_output()
     if ductos or tuberias:

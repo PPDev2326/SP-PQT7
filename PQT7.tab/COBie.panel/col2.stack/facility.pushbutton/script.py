@@ -11,93 +11,98 @@ from DBRepositories.SchoolRepository import ColegiosRepository
 uidoc = revit.uidoc
 doc = revit.doc
 
-# ==== Obtenemos el colegio correspondiente al modelo ====
-school_instance = ColegiosRepository()
-object_school = school_instance.codigo_colegio(doc)
-school = None
-sp_accesibility = None
-sp_code = None
-sp_sustainability = None
-sp_feature = None
-
-if object_school:
-    school = object_school.name
-    school_classification_desc = object_school.classification.facility_description
-    school_classification_number = object_school.classification.facility_number
-    
-    # ==== Variables ====
-    code_arcc = object_school.location.code_arcc
-    code_cui = object_school.location.code_cui
-    code_local = object_school.location.code_local
-    province_sc = object_school.location.province
-    district_sc = object_school.location.district
-    populated = object_school.location.populated_center
-    created_by = object_school.created_by
-    
-    category = "{} : {}".format(school_classification_number, school_classification_desc)
-    
-    facility_descripcion = object_school.cobie.facility_description
-    facility_project_descripcion = object_school.cobie.project_description
-    facility_site_descripcion = object_school.cobie.site_description
-
-# ==== Obtenemnos la instancia del Project Information ====
-fec = FilteredElementCollector(doc)
-project_information_element = fec.OfCategory(BuiltInCategory.OST_ProjectInformation).FirstElement()
-print("los elementos encontrados son : {}".format(len(project_information_element)))
-
-# ==== Seleccionamos los elementos del modelo activo ====
 try:
-    list_elements = uidoc.Selection.PickElementsByRectangle("Selecciona los elementos para el COBie.Facility")
+    # ==== Obtenemos el colegio correspondiente al modelo ====
+    school_instance = ColegiosRepository()
+    object_school = school_instance.codigo_colegio(doc)
+    code_arcc = None
+    code_cui = None
+    code_local = None
+    province_sc = None
+    district_sc = None
+    populated = None
+    created_by = None
+
+    if object_school:
+        school = object_school.name
+        school_classification_desc = object_school.classification.facility_description
+        school_classification_number = object_school.classification.facility_number
+        
+        # ==== Variables ====
+        code_arcc = object_school.location.code_arcc
+        code_cui = object_school.location.code_cui
+        code_local = object_school.location.code_local
+        province_sc = object_school.location.province
+        district_sc = object_school.location.district
+        populated = object_school.location.populated_center
+        created_by = object_school.created_by
+        
+        category = "{} : {}".format(school_classification_number, school_classification_desc)
+        
+        facility_descripcion = object_school.cobie.facility_description
+        facility_project_descripcion = object_school.cobie.project_description
+        facility_site_descripcion = object_school.cobie.site_description
+
+    # ==== Obtenemnos la instancia del Project Information ====
+    fec = FilteredElementCollector(doc)
+    project_information_element = fec.OfCategory(BuiltInCategory.OST_ProjectInformation).FirstElement()
+
+    # ==== Seleccionamos los elementos del modelo activo ====
+    # try:
+    #     list_elements = uidoc.Selection.PickElementsByRectangle("Selecciona los elementos para el COBie.Facility")
+
+    # except OperationCanceledException:
+    #     forms.alert("Operación cancelada: no se seleccionaron elementos para procesar COBie.Facility",
+    #     title="Cancelación")
+
+    # ==== Variables constantes ====
+    CENSUS = "Urbana"
+    DEPARTMENT = "Piura"
+    CREATED_ON = "2023-04-07T16:38:56"
+    PROJECT_NAME = "11 Intervenciones (Instituciones Educativas) en el departamento de Piura"
+    SITE_NAME = "{} - {}".format(DEPARTMENT)
+    LINEAR_UNITS = "Metros"
+    AREA_UNITS = "Metros cuadrados"
+    VOLUMEN_UNITS = "Metros Cúbicos"
+    CURRENCY_UNIT = "Sol"
+    AREA_MEASUREMENT = "Método de cálculo de área predeterminada de Revit"
+    PHASE = "En uso"
+
+    # ==== Parametros de revit a utlizar ====
+    parametros = {
+        "S&P_CODIGO ARCC": code_arcc,
+        "S&P_CODIGO CUI": code_cui,
+        "S&P_CODIGO LOCAL": code_local,
+        "S&P_AREA CENSAL": CENSUS,
+        "S&P_DEPARTAMENTO": DEPARTMENT,
+        "S&P_PROVINCIA": province_sc,
+        "S&P_DISTRITO": district_sc,
+        "S&P_CENTRO POBLADO": populated,
+        "Classification.Facility.Description": school_classification_desc,
+        "Classification.Facility.Number": school_classification_number,
+        "COBie.Facility.Name": school,
+        "COBie.CreatedBy": created_by,
+        "COBie.CreatedOn": CREATED_ON,
+        "COBie.Facility.Category": category,
+        "COBie.Facility.ProjectName": PROJECT_NAME,
+        "COBie.Facility.SiteName": "",
+        "COBie.Facility.LinearUnits": LINEAR_UNITS,
+        "COBie.Facility.AreaUnits": AREA_UNITS,
+        "COBie.Facility.VolumeUnits": VOLUMEN_UNITS,
+        "COBie.Facility.CurrencyUnit": CURRENCY_UNIT,
+        "COBie.Facility.AreaMeasurement": AREA_MEASUREMENT,
+        "COBie.Facility.Description": facility_descripcion,
+        "COBie.Facility.ProjectDescription": facility_project_descripcion,
+        "COBie.Facility.SiteDescription": facility_site_descripcion,
+        "COBie.Facility.Phase": PHASE,
+    }
+
+    with revit.Transaction("Completar datos COBie.Facility"):
+    # ==== Recorremos los elementos de mi variable parametros para asiganarlo al project information ====
+        for param, value in parametros.items():
+            
+            param = getParameter(project_information_element, param)
+            set_param = SetParameter(param, value)
 
 except OperationCanceledException:
-    forms.alert("Operación cancelada: no se seleccionaron elementos para procesar COBie.Facility",
-    title="Cancelación")
-
-# ==== Variables constantes ====
-CENSUS = "Urbana"
-DEPARTMENT = "Piura"
-CREATED_ON = "2023-04-07T16:38:56"
-PROJECT_NAME = "11 Intervenciones (Instituciones Educativas) en el departamento de Piura"
-SITE_NAME = "{} - {}".format(DEPARTMENT)
-LINEAR_UNITS = "Metros"
-AREA_UNITS = "Metros cuadrados"
-VOLUMEN_UNITS = "Metros Cúbicos"
-CURRENCY_UNIT = "Sol"
-AREA_MEASUREMENT = "Método de cálculo de área predeterminada de Revit"
-PHASE = "En uso"
-
-# ==== Parametros de revit a utlizar ====
-parametros = {
-    "S&P_CODIGO ARCC": code_arcc,
-    "S&P_CODIGO CUI": code_cui,
-    "S&P_CODIGO LOCAL": code_local,
-    "S&P_AREA CENSAL": CENSUS,
-    "S&P_DEPARTAMENTO": DEPARTMENT,
-    "S&P_PROVINCIA": province_sc,
-    "S&P_DISTRITO": district_sc,
-    "S&P_CENTRO POBLADO": populated,
-    "Classification.Facility.Description": school_classification_desc,
-    "Classification.Facility.Number": school_classification_number,
-    "COBie.Facility.Name": school,
-    "COBie.CreatedBy": created_by,
-    "COBie.CreatedOn": CREATED_ON,
-    "COBie.Facility.Category": category,
-    "COBie.Facility.ProjectName": PROJECT_NAME,
-    "COBie.Facility.SiteName": "",
-    "COBie.Facility.LinearUnits": LINEAR_UNITS,
-    "COBie.Facility.AreaUnits": AREA_UNITS,
-    "COBie.Facility.VolumeUnits": VOLUMEN_UNITS,
-    "COBie.Facility.CurrencyUnit": CURRENCY_UNIT,
-    "COBie.Facility.AreaMeasurement": AREA_MEASUREMENT,
-    "COBie.Facility.Description": facility_descripcion,
-    "COBie.Facility.ProjectDescription": facility_project_descripcion,
-    "COBie.Facility.SiteDescription": facility_site_descripcion,
-    "COBie.Facility.Phase": PHASE,
-}
-
-with revit.Transaction("Completar datos COBie.Facility"):
-# ==== Recorremos los elementos de mi variable parametros para asiganarlo al project information ====
-    for param, value in parametros.items():
-        
-        param = getParameter(project_information_element, param)
-        set_param = SetParameter(param, value)
+    forms.alert("ERROR: comando cancelado por el usuario.", "Cancelación")

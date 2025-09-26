@@ -60,7 +60,7 @@ try:
     DEPARTMENT = "Piura"
     CREATED_ON = "2023-04-07T16:38:56"
     PROJECT_NAME = "11 Intervenciones (Instituciones Educativas) en el departamento de Piura"
-    SITE_NAME = "{} - {}".format(DEPARTMENT)
+    SITE_NAME = "{} - {}".format(DEPARTMENT, district_sc)
     LINEAR_UNITS = "Metros"
     AREA_UNITS = "Metros cuadrados"
     VOLUMEN_UNITS = "Metros Cúbicos"
@@ -85,7 +85,7 @@ try:
         "COBie.CreatedOn": CREATED_ON,
         "COBie.Facility.Category": category,
         "COBie.Facility.ProjectName": PROJECT_NAME,
-        "COBie.Facility.SiteName": "",
+        "COBie.Facility.SiteName": SITE_NAME,
         "COBie.Facility.LinearUnits": LINEAR_UNITS,
         "COBie.Facility.AreaUnits": AREA_UNITS,
         "COBie.Facility.VolumeUnits": VOLUMEN_UNITS,

@@ -45,8 +45,6 @@ class COBie:
     """
     Representa la información COBie del colegio.
     
-    :param created_by: Creado por.
-    :type created_by: str, optional
     :param facility_description: Descripción de la instalación.
     :type facility_description: str, optional
     :param project_description: Descripción del proyecto.
@@ -54,9 +52,8 @@ class COBie:
     :param site_description: Descripción del sitio.
     :type site_description: str, optional
     """
-    def __init__(self, created_by=None, facility_description=None,
+    def __init__(self, facility_description=None,
                 project_description=None, site_description=None):
-        self.created_by = created_by
         self.facility_description = facility_description
         self.project_description = project_description
         self.site_description = site_description

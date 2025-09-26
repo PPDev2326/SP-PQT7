@@ -14,7 +14,7 @@ doc = revit.doc
 # ==== Obtenemnos la instancia del Project Information ====
 fec = FilteredElementCollector(doc)
 project_information_element = fec.OfCategory(BuiltInCategory.OST_ProjectInformation).FirstElement()
-print("los elementos encontrados son : {}".format(len(project_information_element)))
+print("los elementos encontrados son : {}".format(str(len(project_information_element))))
 
 # ==== Seleccionamos los elementos del modelo activo ====
 try:

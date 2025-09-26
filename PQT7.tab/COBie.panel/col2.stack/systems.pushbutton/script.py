@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 __title__ = "COBie System"
 
+import re
 from Autodesk.Revit.DB import (
     Document, FilteredElementCollector, BuiltInCategory,
     FamilyInstance, StorageType, BuiltInParameter
@@ -25,6 +26,26 @@ def divide_string(text, idx, character_divider=None):
     if idx < 0 or idx >= len(parts):
         return ""
     return parts[idx]
+
+
+def clean_system_name(name):
+    """
+    Normaliza/limpia nombres de sistema:
+    - elimina contenido entre paréntesis (p.ej. "Ventilacion (123)" -> "Ventilacion")
+    - elimina prefijos tipo "IS-", "IS_", "IS "
+    - elimina "Sistema"/"Sistemas" y la palabra "de"
+    - reemplaza guiones/underscores por espacios y compacta espacios
+    - devuelve en Title Case ("ventilacion" -> "Ventilacion")
+    """
+    if not name:
+        return ""
+    s = name.strip()
+    s = re.sub(r'\(.*?\)', '', s)                        # eliminar paréntesis y su contenido
+    s = re.sub(r'^\s*IS[-_\s]*', '', s, flags=re.I)      # quitar prefijo "IS-"
+    s = re.sub(r'\bSistema(s)?\s*(de)?\b', '', s, flags=re.I)  # quitar "Sistema de"
+    s = re.sub(r'[-_]+', ' ', s)                         # reemplazar guiones/underscores
+    s = re.sub(r'\s+', ' ', s).strip()                   # compactar espacios
+    return s.title()
 
 
 specialty_instance = SpecialtiesRepository()
@@ -72,12 +93,16 @@ if specialty in ["INSTALACIONES SANITARIAS", "INSTALACIONES MECANICAS"]:
             param_type = GetParameterAPI(element, BuiltInParameter.ELEM_TYPE_PARAM)
             param_tipo_sistema = param_type.AsValueString() if (param_type and param_type.HasValue) else "Sin valor"
 
-            # Nombre del sistema
+            # Nombre del sistema (RBS_SYSTEM_NAME_PARAM)
             param_name_system = GetParameterAPI(element, BuiltInParameter.RBS_SYSTEM_NAME_PARAM)
-            name_system_value = param_name_system.AsString() if (param_name_system and param_name_system.HasValue) else "Sin valor"
+            name_system_value = param_name_system.AsString() if (param_name_system and param_name_system.HasValue) else ""
+
+            # Limpiar nombre para description
+            cleaned_desc = clean_system_name(name_system_value) or name_system_value
 
             # Para nombrado: segunda parte si hay "-", si no queda vacío
             name_system_divide = divide_string(param_tipo_sistema, 1, "-")
+            cleaned_divide = clean_system_name(name_system_divide) or name_system_divide
 
             tipo = param_tipo_sistema if param_tipo_sistema else "Sin nombre"
 
@@ -90,15 +115,16 @@ if specialty in ["INSTALACIONES SANITARIAS", "INSTALACIONES MECANICAS"]:
             contador = tipos_sistema[tipo]
             sufijo = str(contador).zfill(2)  # 01, 02, 03...
 
+            # usar 'active' proveniente de ProjectInformation
             system_name = "{} - {} {}".format(
                 active.strip(),
-                name_system_divide if name_system_divide else tipo,
+                cleaned_divide if cleaned_divide else tipo,
                 sufijo
             ).strip()
 
             parametros_dinamicos = {
                 "COBie.System.Name": system_name,
-                "COBie.System.Description": "Sistema {}".format(name_system_value)
+                "COBie.System.Description": "Sistema {}".format(cleaned_desc) if cleaned_desc else "Sistema {}".format(name_system_value or tipo)
             }
             parametros_dinamicos.update(parametros_estaticos)
 

@@ -11,8 +11,16 @@ from DBRepositories.SchoolRepository import ColegiosRepository
 uidoc = revit.uidoc
 doc = revit.doc
 
+# ==== Obtenemnos la instancia del Project Information ====
+fec = FilteredElementCollector(doc)
+project_information_element = fec.OfCategory(BuiltInCategory.OST_ProjectInformation).FirstElement()
+print("los elementos encontrados son : {}".format(len(project_information_element)))
+
+# ==== Seleccionamos los elementos del modelo activo ====
 try:
     list_elements = uidoc.Selection.PickElementsByRectangle("Selecciona los elementos para el COBie.Facility")
 
-except OperationCanceledException as Oce:
-    forms.alert("No se seleccionaron elementos operacion cancelada {}".format(Oce), "Cancelación")
+except OperationCanceledException:
+    forms.alert("Operación cancelada: no se seleccionaron elementos para procesar COBie.Facility",
+    title="Cancelación")
+

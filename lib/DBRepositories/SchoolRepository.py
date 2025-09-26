@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # repositories/colegios_repository.py
 from Autodesk.Revit.DB import Document
-from Models._Colegio import Colegio
+from Models._Colegio import Colegio, Location, Classification, COBie
 from DBRepositories.ISchoolRepository import ISchoolDBRepository
 
 class ColegiosRepository(ISchoolDBRepository):
@@ -72,7 +72,11 @@ class ColegiosRepository(ISchoolDBRepository):
                 inst_code="200007",
                 plot_code="P15054574",
                 created_by="jtiburcio@syp.com.pe",
-                warranty_desc="200045-CSSP001-000-XX-OM-ZZ-000001"
+                warranty_desc="200045-CSSP001-000-XX-OM-ZZ-000001",
+                location=Location(code_arcc="2779", code_cui="2513475", code_local="430284", province="Morropón", district="Chulucanas", populated_center="Chulucanas"),
+                classification=Classification(facility_description="Secondary schools", facility_number="Co_25_10_77"),
+                cobie=COBie(facility_name=None, created_by="jtiburcio@syp.com.pe", facility_description="Institución Educativa Secundaria",
+                            project_description="Rehabilitación del local escolar maría auxiliadora con código local n°430284, distrito de Chulucanas, provincia de Morropón, departamento de Piura.", site_description="Calle Mz Z, Lote Nº10")
             ),
             "200046": Colegio(
                 codigo="200046",

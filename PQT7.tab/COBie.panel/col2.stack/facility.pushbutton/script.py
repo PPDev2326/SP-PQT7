@@ -123,7 +123,7 @@ output.print_md("- **Código CUI:** {}".format(code_cui))
 output.print_md("- **Distrito:** {}, {}".format(district_sc, province_sc))
 
 output.print_md("### 📝 Parámetros asignados a Project Information")
-output.print_md("- **Parámetros procesados:** {}".format(conteo)))
+output.print_md("- **Parámetros procesados:** {}".format(conteo))
 
 for key, value in parametros.items():
     output.print_md("| {} | {} |".format(key, value if value else "-"))

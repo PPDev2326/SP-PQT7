@@ -68,6 +68,8 @@ try:
     AREA_MEASUREMENT = "Método de cálculo de área predeterminada de Revit"
     PHASE = "En uso"
 
+    conteo = 0
+    
     # ==== Parametros de revit a utlizar ====
     parametros = {
         "S&P_CODIGO ARCC": code_arcc,
@@ -103,6 +105,10 @@ try:
             
             param = getParameter(project_information_element, param)
             set_param = SetParameter(param, value)
+            if set_param:
+                conteo += 1
+        if conteo > 0:
+            TaskDialog().Show("Informativo", "Datos cargados correctamente.\n\t{} procesados exitosamente".format())
 
 except OperationCanceledException:
     forms.alert("ERROR: comando cancelado por el usuario.", "Cancelación")
@@ -117,6 +123,7 @@ output.print_md("- **Código CUI:** {}".format(code_cui))
 output.print_md("- **Distrito:** {}, {}".format(district_sc, province_sc))
 
 output.print_md("### 📝 Parámetros asignados a Project Information")
+output.print_md("- **Parámetros procesados:** {}".format(conteo)))
 
 for key, value in parametros.items():
     output.print_md("| {} | {} |".format(key, value if value else "-"))

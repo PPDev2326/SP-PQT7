@@ -108,7 +108,7 @@ try:
             if set_param:
                 conteo += 1
         if conteo > 0:
-            TaskDialog().Show("Informativo", "Datos cargados correctamente.\n\t{}/{} procesados exitosamente".format(conteo, len(parametros)))
+            TaskDialog.Show("Informativo", "Datos cargados correctamente.\n\t{}/{} procesados exitosamente".format(conteo, len(parametros)))
 
 except OperationCanceledException:
     forms.alert("ERROR: comando cancelado por el usuario.", "Cancelación")

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 __title__ = "COBie Facility"
 
-from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory, FamilyInstance
+from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory
 from Autodesk.Revit.UI import TaskDialog
 from Autodesk.Revit.Exceptions import OperationCanceledException
 from pyrevit import revit, script, forms
@@ -106,3 +106,17 @@ try:
 
 except OperationCanceledException:
     forms.alert("ERROR: comando cancelado por el usuario.", "Cancelación")
+
+output = script.get_output()
+
+output.print_md("## 📊 Resumen general de la operación")
+output.print_md("### 🏫 Colegio procesado:")
+output.print_md("- **Nombre:** {}".format(school))
+output.print_md("- **Código ARCC:** {}".format(code_arcc))
+output.print_md("- **Código CUI:** {}".format(code_cui))
+output.print_md("- **Distrito:** {}, {}".format(district_sc, province_sc))
+
+output.print_md("### 📝 Parámetros asignados a Project Information")
+
+for key, value in parametros.items():
+    output.print_md("| {} | {} |".format(key, value if value else "-"))

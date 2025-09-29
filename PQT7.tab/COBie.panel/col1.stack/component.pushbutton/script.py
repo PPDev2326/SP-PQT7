@@ -42,7 +42,7 @@ def divide_string(text, idx, character_divider=None, compare=None, value_default
         return ""
     
     # Verificar coincidencia antes de dividir
-    if compare and text.strip().casefold() == compare.casefold():
+    if compare and text.strip().lower() == compare.lower():
         return value_default
     
     parts = text.split(character_divider) if character_divider else text.split()

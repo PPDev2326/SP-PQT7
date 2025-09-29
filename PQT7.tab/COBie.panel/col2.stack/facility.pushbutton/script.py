@@ -46,6 +46,11 @@ try:
     # ==== Obtenemnos la instancia del Project Information ====
     fec = FilteredElementCollector(doc)
     project_information_element = fec.OfCategory(BuiltInCategory.OST_ProjectInformation).FirstElement()
+    
+    # Validación: si no existe Project Information, detener
+    if not project_information_element:
+        forms.alert("No se encontró el Project Information en este modelo.", title="Error")
+        script.exit()
 
     # ==== Seleccionamos los elementos del modelo activo ====
     # try:

@@ -4,12 +4,17 @@ __title__ = "COBie Facility"
 from Autodesk.Revit.DB import FilteredElementCollector, BuiltInCategory
 from Autodesk.Revit.UI import TaskDialog
 from Autodesk.Revit.Exceptions import OperationCanceledException
+from Extensions._Modulo import obtener_nombre_archivo, validar_nombre
 from pyrevit import revit, script, forms
 from Extensions._RevitAPI import getParameter, SetParameter
 from DBRepositories.SchoolRepository import ColegiosRepository
 
 uidoc = revit.uidoc
 doc = revit.doc
+
+nombre_archivo = obtener_nombre_archivo()
+if not validar_nombre(nombre_archivo):
+    script.exit()
 
 try:
     # ==== Obtenemos el colegio correspondiente al modelo ====

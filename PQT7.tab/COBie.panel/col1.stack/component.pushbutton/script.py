@@ -1,35 +1,43 @@
 # -- coding: utf-8 --
 __title__ = "COBie\nComponent"
 
-import clr
-clr.AddReference('RevitAPI')
-clr.AddReference('RevitAPIUI')
-
+# ==== Obtenemos la librerias necesarias ====
 from Autodesk.Revit.DB import Transaction, ElementId, StorageType, FamilyInstance
 from Autodesk.Revit.UI import TaskDialog
+from Autodesk.Revit.Exceptions import OperationCanceledException
 from Autodesk.Revit.UI.Selection import ObjectType
-from pyrevit import script, revit
-
+from pyrevit import script, revit, forms
 from Extensions._Modulo import obtener_nombre_archivo, validar_nombre
-from Extensions._Dictionary import obtener_mantenimiento, obtener_codigo_colegio, obtener_serial_number
+from DBRepositories.SchoolRepository import ColegiosRepository
 
 nombre_archivo = obtener_nombre_archivo()
 if not validar_nombre(nombre_archivo):
     script.exit()
 
-# Obtener el documento activo
+# ==== Obtener el documento activo ====
 doc = revit.doc
 ui_doc = revit.uidoc
 
-# Seleccionar referencias de elementos
-references = ui_doc.Selection.PickObjects(ObjectType.Element)
+# ==== Seleccionar referencias de elementos ====
+try:
+    references = ui_doc.Selection.PickObjects(ObjectType.Element)
+except OperationCanceledException:
+    forms.alert("Operación cancelada: no se seleccionaron elementos para procesar COBie.Component",
+                title="Cancelación")
 
-# Datos fijos
-creado_por = "pruiz@cgeb.com.pe"
-fecha = "2025-04-18T16:45:10"
-hora_de_ejecucion = "T13:29:49"
-fecha_garantia = obtener_mantenimiento()
-numero_conts = "775"
+# ==== Datos fijos ====
+CREATED_ON = "2025-08-04T11:59:30"
+
+
+# ==== Instanciamos el colegio correspondiente del modelo activo ====
+school_repo_object = ColegiosRepository()
+school_object = school_repo_object.codigo_colegio(doc)
+school = None
+created_by = None
+
+if school_object:
+    school = school_object.name
+    created_by = school_object.created_by
 
 count = 0
 
@@ -85,13 +93,13 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
 
             parametros = {
                 "COBie.Component.Name": str(id_elem) + "_" + str(nrm),
-                "COBie.CreatedBy": str(creado_por),
-                "COBie.CreatedOn": str(fecha),
+                "COBie.CreatedBy": str(CREATED_ON),
+                "COBie.CreatedOn": str(DATE),
                 "COBie.Component.Space": str(ambiente),
                 "COBie.Component.Description": str(descripcion),
                 "COBie.Component.SerialNumber": str(serial_number),
-                "COBie.Component.InstallationDate": str(instalacion) + str(hora_de_ejecucion),
-                "COBie.Component.WarrantyStartDate": str(fecha_garantia),
+                "COBie.Component.InstallationDate": str(instalacion) + str(EXECUTION_TIME),
+                "COBie.Component.WarrantyStartDate": str(WARRANTY_DATE),
                 "COBie.Component.TagNumber": str(id_elem),
                 "COBie.Component.BarCode": str(numero_conts) + str(id_elem),
                 "COBie.Component.AssetIdentifier": str(uid_elem)

@@ -6,9 +6,14 @@ from Autodesk.Revit.DB import BuiltInParameter, StorageType, UnitUtils, UnitType
 from Autodesk.Revit.UI import TaskDialog
 from pyrevit import script, revit, forms
 from Extensions._RevitAPI import getParameter, GetParameterAPI, SetParameter
+from Extensions._Modulo import obtener_nombre_archivo, validar_nombre
 from DBRepositories.SpecialtiesRepository import SpecialtiesRepository
 from DBRepositories.SchoolRepository import ColegiosRepository
 from Helper._Excel import Excel
+
+nombre_archivo = obtener_nombre_archivo()
+if not validar_nombre(nombre_archivo):
+    script.exit()
 
 parametros_cobie = [
         "COBie.Type.Manufacturer",

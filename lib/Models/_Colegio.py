@@ -58,6 +58,15 @@ class COBie:
         self.project_description = project_description
         self.site_description = site_description
 
+class COBieComponent:
+    """
+    Representa la información COBie del ccomponente.
+    
+    :param component_warranty: Inicio de la fecha de garantía.
+    :type component_warranty: str, optional
+    """
+    def __init__(self, warranty_start = None):
+        self.component_warranty = warranty_start
 
 class Colegio:
     """
@@ -65,7 +74,7 @@ class Colegio:
     """
     
     def __init__(self, codigo, nombre, replacement_date, om, doc_ref, inst_code, plot_code, created_by, warranty_desc,
-                location=None, classification=None, cobie=None):
+                location=None, classification=None, cobie=None, warranty_start=None):
         self.code = codigo
         self.name = nombre
         self.replacement_date = replacement_date
@@ -80,6 +89,7 @@ class Colegio:
         self.location = location or Location()
         self.classification = classification or Classification()
         self.cobie = cobie or COBie()
+        self.warranty_start_date = warranty_start or COBieComponent()
 
         
     

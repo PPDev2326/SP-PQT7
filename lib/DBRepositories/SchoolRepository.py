@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # repositories/colegios_repository.py
 from Autodesk.Revit.DB import Document
-from Models._Colegio import Colegio, Location, Classification, COBie
+from Models._Colegio import Colegio, Location, Classification, COBie, COBieComponent
 from DBRepositories.ISchoolRepository import ISchoolDBRepository
 
 class ColegiosRepository(ISchoolDBRepository):
@@ -76,7 +76,8 @@ class ColegiosRepository(ISchoolDBRepository):
                 location=Location(code_arcc="2779", code_cui="2513475", code_local="430284", province="Morropón", district="Chulucanas", populated_center="Chulucanas"),
                 classification=Classification(facility_description="Secondary schools", facility_number="Co_25_10_77"),
                 cobie=COBie(facility_description="Institución Educativa Secundaria",
-                            project_description="Rehabilitación del local escolar maría auxiliadora con código local n°430284, distrito de Chulucanas, provincia de Morropón, departamento de Piura.", site_description="Calle Mz Z, Lote Nº10")
+                            project_description="Rehabilitación del local escolar maría auxiliadora con código local n°430284, distrito de Chulucanas, provincia de Morropón, departamento de Piura.", site_description="Calle Mz Z, Lote Nº10"),
+                warranty_start=COBieComponent(warranty_start="2023-12-21")
             ),
             "200046": Colegio(
                 codigo="200046",
@@ -91,7 +92,8 @@ class ColegiosRepository(ISchoolDBRepository):
                 location=Location(code_arcc="2282", code_cui="2513474", code_local="432184", province="Morropón", district="Salitral", populated_center="Salitral"),
                 classification=Classification(facility_description="Primary schools", facility_number="Co_25_10_66"),
                 cobie=COBie(facility_description="Institución Educativa Secundaria",
-                            project_description="Rehabilitación del local escolar nº 14654 con código local nº432184.distrito de Salitral, provincia de Morropón, departamento de Piura.", site_description="Calle 29 DE MAYO 401")
+                            project_description="Rehabilitación del local escolar nº 14654 con código local nº432184.distrito de Salitral, provincia de Morropón, departamento de Piura.", site_description="Calle 29 DE MAYO 401"),
+                warranty_start=COBieComponent(warranty_start="2024-06-18")
             ),
             "200047": Colegio(
                 codigo="200047",
@@ -106,7 +108,8 @@ class ColegiosRepository(ISchoolDBRepository):
                 location=Location(code_arcc="2775", code_cui="2428627", code_local="434927", province="Paita", district="Vichayal", populated_center="Miramar"),
                 classification=Classification(facility_description="Secondary schools", facility_number="Co_25_10_66"),
                 cobie=COBie(facility_description="Institución Educativa Secundaria",
-                            project_description="Rehabilitación del local escolar Ricardo palma con código local nº 434927, distrito de Vichayal, provincia de Paita, departamento de Piura.", site_description="Avenida Buenos Aires 115")
+                            project_description="Rehabilitación del local escolar Ricardo palma con código local nº 434927, distrito de Vichayal, provincia de Paita, departamento de Piura.", site_description="Avenida Buenos Aires 115"),
+                warranty_start=COBieComponent(warranty_start="2024-02-26")
             ),
             "200049": Colegio(
                 codigo="200049",
@@ -121,7 +124,8 @@ class ColegiosRepository(ISchoolDBRepository):
                 location=Location(code_arcc="2358", code_cui="2428716", code_local="413350", province="Piura", district="Catacaos", populated_center="Catacaos"),
                 classification=Classification(facility_description="Educational complexe", facility_number="Co_25_10"),
                 cobie=COBie(facility_description="Institución Educativa Inicial -Primaria",
-                            project_description="Rehabilitación del local escolar nº 14037 Santiago a. Requena Castro con código local nº 413350.distrito de Catacaos, provincia de Piura, departamento de Piura.", site_description="Av.Cayetano Heredia")
+                            project_description="Rehabilitación del local escolar nº 14037 Santiago a. Requena Castro con código local nº 413350.distrito de Catacaos, provincia de Piura, departamento de Piura.", site_description="Av.Cayetano Heredia"),
+                warranty_start=COBieComponent(warranty_start="2023-07-21")
             ),
             "200053": Colegio(
                 codigo="200053",
@@ -136,7 +140,8 @@ class ColegiosRepository(ISchoolDBRepository):
                 location=Location(code_arcc="2806", code_cui="2428716", code_local="413307", province="Piura", district="Catacaos", populated_center="Catacaos"),
                 classification=Classification(facility_description="Educational complexe", facility_number="Co_25_10"),
                 cobie=COBie(facility_description="Institución Educativa Inicial -Primaria",
-                            project_description="Rehabilitación del local escolar virgen del Carmen con código local nº 413307, distrito de Catacaos, provincia de Piura, departamento de Piura.", site_description="Calle San Francisco S/N")
+                            project_description="Rehabilitación del local escolar virgen del Carmen con código local nº 413307, distrito de Catacaos, provincia de Piura, departamento de Piura.", site_description="Calle San Francisco S/N"),
+                warranty_start=COBieComponent(warranty_start="2024-04-23")
             ),
             "200057": Colegio(
                 codigo="200057",
@@ -151,7 +156,8 @@ class ColegiosRepository(ISchoolDBRepository):
                 location=Location(code_arcc="1680", code_cui="2428581", code_local="414707", province="Piura", district="Unión", populated_center="Yapato"),
                 classification=Classification(facility_description="Primary schools", facility_number="Co_25_10_66"),
                 cobie=COBie(facility_description="Institución Educativa Primaria",
-                            project_description="Rehabilitación del local escolar nº 14065 con código loca nº414707. Distrito de la unión, provincia de Piura, departamento de Piura.", site_description="Av.Juan Velasco")
+                            project_description="Rehabilitación del local escolar nº 14065 con código loca nº414707. Distrito de la unión, provincia de Piura, departamento de Piura.", site_description="Av.Juan Velasco"),
+                warranty_start=COBieComponent(warranty_start="2023-12-28")
             ),
             "200058": Colegio(
                 codigo="200058",
@@ -166,7 +172,8 @@ class ColegiosRepository(ISchoolDBRepository):
                 location=Location(code_arcc="2261", code_cui="2428588", code_local="770240", province="Piura", district="La Unión", populated_center="Tablazo Norte"),
                 classification=Classification(facility_description="Primary schools", facility_number="Co_25_10_66"),
                 cobie=COBie(facility_description="Institución Educativa- Primaria",
-                            project_description="Rehabilitación del local escolar nº 14062 Nuestra Señora de las Mercedes con código local nº 770240, distrito de La Unión, provincia de Piura, departamento de Piura.", site_description="Ca. San Martín Nº 401")
+                            project_description="Rehabilitación del local escolar nº 14062 Nuestra Señora de las Mercedes con código local nº 770240, distrito de La Unión, provincia de Piura, departamento de Piura.", site_description="Ca. San Martín Nº 401"),
+                warranty_start=COBieComponent(warranty_start="2024-12-27")
             ),
             "200060": Colegio(
                 codigo="200060",
@@ -181,7 +188,8 @@ class ColegiosRepository(ISchoolDBRepository):
                 location=Location(code_arcc="1784", code_cui="2513470", code_local="440688", province="Sechura", district="Cristo nos valga", populated_center="San Cristo"),
                 classification=Classification(facility_description="Educational complexes", facility_number="Co_25_10"),
                 cobie=COBie(facility_description="Institución Educativa- Inicial-Primaria -Secundaria",
-                            project_description="Rehabilitación del local escolar “San Cristo” con código local nº 440688, distrito de cristo nos valga, provincia de Sechura, departamento de Piura.", site_description="Calle Libertad-Sanchez Cerro S/N")
+                            project_description="Rehabilitación del local escolar “San Cristo” con código local nº 440688, distrito de cristo nos valga, provincia de Sechura, departamento de Piura.", site_description="Calle Libertad-Sanchez Cerro S/N"),
+                warranty_start=COBieComponent(warranty_start="2025-08-22")
             ),
             "200061": Colegio(
                 codigo="200061",
@@ -196,7 +204,8 @@ class ColegiosRepository(ISchoolDBRepository):
                 location=Location(code_arcc="1675", code_cui="2428585", code_local="440773", province="San Cristo", district="Vice", populated_center="Vice"),
                 classification=Classification(facility_description="Primary schools", facility_number="Co_25_10_66"),
                 cobie=COBie(facility_description="Institución Educativa Primaria",
-                            project_description="Recuperación del local escolar nº 14010 Miguel F. Cerro-Vice con código local nº 440773, distrito de vice, provincia de Sechura, departamento de Piura.", site_description="Avenida Miguel F.Cerro S/N")
+                            project_description="Recuperación del local escolar nº 14010 Miguel F. Cerro-Vice con código local nº 440773, distrito de vice, provincia de Sechura, departamento de Piura.", site_description="Avenida Miguel F.Cerro S/N"),
+                warranty_start=COBieComponent(warranty_start="2024-06-25")
             ),
             "200063": Colegio(
                 codigo="200063",
@@ -211,7 +220,8 @@ class ColegiosRepository(ISchoolDBRepository):
                 location=Location(code_arcc="1706", code_cui="2428584", code_local="437775", province="Sullana", district="Miguel Checa", populated_center="Jibito"),
                 classification=Classification(facility_description="Primary schools", facility_number="Co_25_10_66"),
                 cobie=COBie(facility_description="Institución Educativa Primaria",
-                            project_description="Rehabilitación del local escolar nº 14858 con código local nº 437775, distrito de miguel checa, provincia de Sullana, departamento de Piura.", site_description="Santa Julia")
+                            project_description="Rehabilitación del local escolar nº 14858 con código local nº 437775, distrito de miguel checa, provincia de Sullana, departamento de Piura.", site_description="Santa Julia"),
+                warranty_start=COBieComponent(warranty_start="2024-07-22")
             ),
             "200070": Colegio(
                 codigo="200070",
@@ -226,6 +236,7 @@ class ColegiosRepository(ISchoolDBRepository):
                 location=Location(code_arcc="2766", code_cui="2428635", code_local="438614", province="Talara", district="Pariñas", populated_center="Talara"),
                 classification=Classification(facility_description="Secondary schools", facility_number="Co_25_10_77"),
                 cobie=COBie(facility_description="Institución Educativa Secundaria",
-                            project_description="Rehabilitación del local escolar Ignacio merino con código local n°438614, distrito de Pariñas, provincia de talara, departamento de Piura.", site_description="Av. Ignacio Merino")
+                            project_description="Rehabilitación del local escolar Ignacio merino con código local n°438614, distrito de Pariñas, provincia de talara, departamento de Piura.", site_description="Av. Ignacio Merino"),
+                warranty_start=COBieComponent(warranty_start="2024-12-05")
             ),
         }

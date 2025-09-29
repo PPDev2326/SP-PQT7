@@ -8,13 +8,16 @@ from Autodesk.Revit.DB import (
 )
 from Autodesk.Revit.UI import TaskDialog
 from pyrevit import revit, forms, script
+from Extensions._Modulo import obtener_nombre_archivo, validar_nombre
 from Extensions._RevitAPI import getParameter, GetParameterAPI, SetParameter
 from DBRepositories.SpecialtiesRepository import SpecialtiesRepository
-
 
 uidoc = revit.uidoc
 doc = revit.doc
 
+nombre_archivo = obtener_nombre_archivo()
+if not validar_nombre(nombre_archivo):
+    script.exit()
 
 def divide_string(text, idx, character_divider=None):
     """

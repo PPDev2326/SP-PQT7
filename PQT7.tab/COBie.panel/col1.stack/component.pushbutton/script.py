@@ -1,7 +1,7 @@
-# -- coding: utf-8 --
+# -*- coding: utf-8 -*-
 __title__ = "COBie\nComponent"
 
-# ==== Librerías necesarias ====
+# ==== Obtenemos la librerias necesarias ====
 from Autodesk.Revit.DB import Transaction, ElementId, StorageType, FamilyInstance, ElementType, BuiltInParameter
 from Autodesk.Revit.UI import TaskDialog
 from Autodesk.Revit.Exceptions import OperationCanceledException
@@ -12,11 +12,6 @@ from Extensions._RevitAPI import GetParameterAPI, get_param_value, getParameter
 from DBRepositories.SchoolRepository import ColegiosRepository
 from DBRepositories.SpecialtiesRepository import SpecialtiesRepository
 
-# ==== Configuración del logger ====
-logger = script.get_logger()
-logger.set_level('DEBUG')  # Opciones: DEBUG, INFO, WARNING, ERROR
-
-# ==== Validar nombre del archivo ====
 nombre_archivo = obtener_nombre_archivo()
 if not validar_nombre(nombre_archivo):
     script.exit()
@@ -36,6 +31,7 @@ def get_first_valid_parameter(elem, names):
                 return value
     return None
 
+
 # ==== Metodo para dividir una cadena ====
 def divide_string(text, idx, character_divider=None, compare=None, value_default=None):
     """
@@ -44,18 +40,22 @@ def divide_string(text, idx, character_divider=None, compare=None, value_default
     """
     if not text:
         return ""
+    
+    # Verificar coincidencia antes de dividir
     if compare and text.strip().lower() == compare.lower():
         return value_default
+    
     parts = text.split(character_divider) if character_divider else text.split()
     if idx < 0 or idx >= len(parts):
         return ""
+    
     return parts[idx]
 
 # ==== Obtener el documento activo ====
 doc = revit.doc
 ui_doc = revit.uidoc
 
-# ==== Seleccionar elementos ====
+# ==== Seleccionar elementos y obtenemos tipo Reference de los elementos ====
 try:
     references = ui_doc.Selection.PickObjects(ObjectType.Element)
 except OperationCanceledException:
@@ -66,33 +66,39 @@ except OperationCanceledException:
 # ==== Datos fijos ====
 CREATED_ON = "2025-08-04T11:59:30"
 
-# ==== Colegio del modelo ====
+
+# ==== Instanciamos el colegio correspondiente del modelo activo ====
 school_repo_object = ColegiosRepository()
 school_object = school_repo_object.codigo_colegio(doc)
-school = created_by = warranty_start_date = None
+school = None
+created_by = None
+warranty_start_date = None
+
+# ==== Verificamos si el colegio existe
 if school_object:
     school = school_object.name
     created_by = school_object.created_by
     warranty_start_date = school_object.warranty_start_date.component_warranty
 
-# ==== Especialidad del modelo ====
+# ==== Instanciamos la especialidad correspondiente al modelo ====
 specialty_repo = SpecialtiesRepository()
 specialty_object = specialty_repo.get_specialty_by_document(doc)
-specialty = specialty_object.name if specialty_object else None
+specialty = None
 
-# ==== Contadores ====
-count_ok = 0
-count_skipped = 0
-count_failed = 0
-errores = []
+if specialty_object:
+    specialty = specialty_object.name
+
+count = 0
 
 with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
 
     for reference in references:
+        # ==== Obtenemos el elemento seleccionado ====
         element_object = doc.GetElement(reference)
+
         elementos_a_procesar = [element_object]
 
-        # ==== Verificar subcomponentes ====
+        # ==== Verificar si tiene subcomponentes (solo si es FamilyInstance) ====
         if isinstance(element_object, FamilyInstance):
             try:
                 sub_ids = element_object.GetSubComponentIds()
@@ -101,108 +107,85 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
                         sub_elem = doc.GetElement(sid)
                         if sub_elem:
                             elementos_a_procesar.append(sub_elem)
-            except Exception:
+            except:
                 pass
 
         for elem in elementos_a_procesar:
-            id_elem = elem.Id.IntegerValue
-            logger.info("=== Procesando elemento ID {} ===".format(id_elem))
-
+            uid_elem = elem.UniqueId
+            
             # ==== Validar el parámetro COBie ====
             cobie = elem.LookupParameter("COBie")
-            if not (cobie and not cobie.IsReadOnly and
-                    cobie.StorageType == StorageType.Integer and
-                    cobie.AsInteger() == 1):
-                logger.debug("Elemento ID {} omitido: no cumple condición COBie.".format(id_elem))
-                count_skipped += 1
+            if not (cobie and not cobie.IsReadOnly and cobie.StorageType == StorageType.Integer and cobie.AsInteger() == 1):
                 continue
-
-            # ==== Nivel del elemento ====
+            
+            # ==== Obtenemos el nivel del elemento ====
             level_param_value = get_param_value(getParameter(elem, "NIVEL DE ELEMENTO"))
             level = divide_string(level_param_value, 1)
+            
+            # ==== Obtenemos la categoria del elemento y Verificamos que el elemento tenga categoria ====
+            elem_category_object = elem.Category
+            name_category = elem_category_object.Name if elem_category_object else "Sin categoria"
+            
 
-            # ==== Tipo del elemento ====
-            element_type_object_id = elem.GetTypeId()
+            id_elem = elem.Id.IntegerValue
+            
+            # ==== Obtenemos el tipo del elemento seleccionado y su nombre ====
+            element_type_object_id = elem.GetTypeId()             # => Obtenemos el ElementId del elemento
             if element_type_object_id == ElementId.InvalidElementId:
-                logger.warning("Elemento ID {} no tiene tipo asociado.".format(id_elem))
-                count_failed += 1
+                print("El elemento id" + str(id_elem) + " no tiene un tipo asociado.")
                 continue
+            el_type_object = doc.GetElement(element_type_object_id)     # => Obtenemos el Tipo de elemento por medio de su ID
+            param_object_type = GetParameterAPI(el_type_object, BuiltInParameter.SYMBOL_NAME_PARAM)
+            name_type = get_param_value(param_object_type)
+            pr_number = get_param_value(getParameter(elem, "Classification.Uniclass.Pr.Number"))
 
-            el_type_object = doc.GetElement(element_type_object_id)
-            name_type = get_param_value(GetParameterAPI(el_type_object, BuiltInParameter.SYMBOL_NAME_PARAM))
+            # ==== Obtenemos la familia del elemento y Verificamos que exista ====
             family_name = el_type_object.FamilyName if isinstance(el_type_object, ElementType) else "Sin familia"
 
-            # ==== Zonificación MBR ====
+            # ==== Obtenemos la zonificacion del MBR ====
             zonification_value = get_param_value(getParameter(elem, "S&P_ZONIFICACION"))
             mbr_value = divide_string(zonification_value, 1, compare="sitio", value_default="000")
-
-            # ==== Ambiente ====
-            ambiente = get_param_value(getParameter(elem, "S&P_AMBIENTE"))
-
-            # ==== Código ====
+            
+            # ==== Obtenemos el ambiente del elemento ====
+            ambiente_object = getParameter(elem, "S&P_AMBIENTE")
+            ambiente = get_param_value(ambiente_object)
+            
+            # ==== Obtenemos el codigo del elemento ====
             code_elem = get_param_value(getParameter(elem, "S&P_CODIGO DE ELEMENTO"))
-
-            # ==== Descripción ====
+            if code_elem not in (None, "", "n/a"):
+                code_elem
+            
+            # ==== Obtenemos el parametro partida N°xx de acuerdo a la especialidad ====
             if specialty in ["INSTALACIONES SANITARIAS", "COMUNICACIONES"]:
                 description = get_first_valid_parameter(
-                    elem, ["S&P_DESCRIPCION PARTIDA N°2", "S&P_DESCRIPCION PARTIDA N°1"]
+                    elem,
+                    ["S&P_DESCRIPCION PARTIDA N°2", "S&P_DESCRIPCION PARTIDA N°1"]
                 )
             else:
-                description = get_first_valid_parameter(elem, ["S&P_DESCRIPCION PARTIDA N°1"])
+                description = get_first_valid_parameter(
+                    elem,
+                    ["S&P_DESCRIPCION PARTIDA N°1"]
+                )
 
-            # ==== Parámetros a transferir ====
+
             parametros = {
-                "COBie.Component.Name": "{} : {} : {} : {}".format(
-                    elem.Category.Name if elem.Category else "Sin categoría",
-                    family_name,
-                    name_type,
-                    id_elem
-                ),
+                "COBie.Component.Name": "{} : {} : {} : {}".format(name_category, family_name, name_type, id_elem),
                 "COBie.CreatedBy": created_by,
                 "COBie.CreatedOn": CREATED_ON,
                 "COBie.Component.Space": ambiente,
                 "COBie.Component.Description": description,
                 "COBie.Component.SerialNumber": "{} {}".format(code_elem, id_elem),
+                "COBie.Component.InstallationDate": "",
                 "COBie.Component.WarrantyStartDate": warranty_start_date,
-                "COBie.Component.AssetIdentifier": "{}-ZZ-{}-".format(mbr_value, level),
+                "COBie.Component.TagNumber": "",
+                "COBie.Component.BarCode": "",
+                "COBie.Component.AssetIdentifier": "{}-ZZ-{}-".format(mbr_value, level)
             }
 
-            # ==== Setear parámetros ====
             for param_name, value in parametros.items():
                 param = elem.LookupParameter(param_name)
-                if not param:
-                    errores.append("Elemento ID {} no tiene parámetro '{}'".format(id_elem, param_name))
-                    logger.error(errores[-1])
-                    count_failed += 1
-                    continue
-                if param.IsReadOnly:
-                    errores.append("Parámetro '{}' en elemento ID {} es de solo lectura".format(param_name, id_elem))
-                    logger.warning(errores[-1])
-                    count_failed += 1
-                    continue
-                if value in (None, ""):
-                    logger.debug("Parámetro '{}' vacío en elemento ID {}".format(param_name, id_elem))
-                    continue
-                try:
+                if param and not param.IsReadOnly:
                     param.Set(value)
-                    logger.info("✔ '{}' = '{}' en elemento ID {}".format(param_name, value, id_elem))
-                except Exception as ex:
-                    errores.append("Error al asignar '{}' en elemento ID {}: {}".format(param_name, id_elem, ex))
-                    logger.error(errores[-1])
-                    count_failed += 1
-            count_ok += 1
+            count += 1
 
-# ==== Resumen final ====
-logger.info("==== RESUMEN FINAL ====")
-logger.info("Procesados correctamente: {}".format(count_ok))
-logger.info("Omitidos (sin COBie): {}".format(count_skipped))
-logger.info("Fallidos (errores o solo lectura): {}".format(count_failed))
-
-if errores:
-    logger.warning("Lista de errores:")
-    for err in errores:
-        logger.warning(" - {}".format(err))
-
-TaskDialog.Show("Informativo", "COBie Component\nProcesados: {}\nOmitidos: {}\nFallidos: {}".format(
-    count_ok, count_skipped, count_failed
-))
+    TaskDialog.Show("Informativo", "Son {} procesados correctamente\npara COBie component".format(count))

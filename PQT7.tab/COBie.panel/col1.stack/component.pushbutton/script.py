@@ -58,6 +58,27 @@ columns_headers = [
     "CODIGO"
 ]
 
+def find_data_by_code(data_list, codigo_elemento):
+    """
+    Busca los datos del Excel que coincidan con el código del elemento.
+    
+    :param data_list: Lista de diccionarios con los datos del Excel.
+    :type data_list: list
+    :param codigo_elemento: Código del elemento de Revit.
+    :type codigo_elemento: str
+    :return: Diccionario con los datos encontrados o None si no encuentra.
+    :rtype: dict or None
+    """
+    if not data_list:
+        return None
+    
+    for row_data in data_list:
+        codigo_excel = row_data.get("CODIGO")
+        if codigo_excel and str(codigo_excel).strip() == str(codigo_elemento).strip():
+            return row_data
+    
+    return None
+
 # ==== Obtener el documento activo ====
 doc = revit.doc
 ui_doc = revit.uidoc

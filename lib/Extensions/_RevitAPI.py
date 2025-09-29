@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from Autodesk.Revit.DB import BuiltInParameter, Element, StorageType
+from Autodesk.Revit.DB import BuiltInParameter, Element, StorageType, ElementId
 
 def getParameter(element, name):
     """Obtiene un parametro compartido si no es de solo lectura.
@@ -18,12 +18,27 @@ def SetParameter(parameter, new_value):
     :return: True si se seteó correctamente, False si fue de solo lectura o inválido."""
     if parameter and not parameter.IsReadOnly:
         try:
-            parameter.Set(new_value)
+            if parameter.StorageType == StorageType.String:
+                parameter.Set(str(new_value))
+            elif parameter.StorageType == StorageType.Double:
+                parameter.Set(float(new_value))
+            elif parameter.StorageType == StorageType.Integer:
+                parameter.Set(int(new_value))
+            elif parameter.StorageType == StorageType.ElementId:
+                if isinstance(new_value, ElementId):
+                    parameter.Set(new_value)
             return True
-        
         except Exception as e:
-            print("Error al setear el parametro: ", e)
+            print("Error al setear el parámetro:", e)
     return False
+    # if parameter and not parameter.IsReadOnly:
+    #     try:
+    #         parameter.Set(new_value)
+    #         return True
+        
+    #     except Exception as e:
+    #         print("Error al setear el parametro: ", e)
+    # return False
 
 def GetParameterAPI(element, built_param):
     """

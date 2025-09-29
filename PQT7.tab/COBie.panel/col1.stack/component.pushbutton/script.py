@@ -54,14 +54,9 @@ def divide_string(text, idx, character_divider=None, compare=None, value_default
 
 columns_headers = [
     "COBie.Component.InstallationDate",
-    "COBie.Component.TagNumber",
-    "COBie.Component.BarCode"
+    "COBie.Component.BarCode",
+    "CODIGO"
 ]
-
-excel_instance = Excel()
-rows_excel = excel_instance.read_excel("ESTANDAR COBIE  -AR")
-headers = excel_instance.get_headers(rows_excel, 2)
-headers_required = excel_instance.headers_required(headers, columns_headers)
 
 # ==== Obtener el documento activo ====
 doc = revit.doc
@@ -99,6 +94,56 @@ specialty = None
 
 if specialty_object:
     specialty = specialty_object.name
+
+# ==== Obtenemos la hoja excel de acuerdo a la especialidad ====
+data_list = None
+
+if specialty == "ARQUITECTURA":
+    excel_instance = Excel()
+    excel_rows = excel_instance.read_excel('ESTANDAR COBIE  -AR')
+    headers = excel_instance.get_headers(excel_rows, 2)
+    headers_required = excel_instance.headers_required(headers, columns_headers)
+    data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
+    print("Datos de Arquitectura cargados:", len(data_list), "filas")
+
+elif specialty == "INSTALACIONES SANITARIAS":
+    excel_instance = Excel()
+    excel_rows = excel_instance.read_excel('ESTANDAR COBIE  - PL')
+    headers = excel_instance.get_headers(excel_rows, 2)
+    headers_required = excel_instance.headers_required(headers, columns_headers)
+    data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
+    print("Datos de Sanitarias cargados:", len(data_list), "filas")
+
+elif specialty == "INSTALACIONES ELECTRICAS":
+    excel_instance = Excel()
+    excel_rows = excel_instance.read_excel('ESTANDAR COBIE  -EE')
+    headers = excel_instance.get_headers(excel_rows, 2)
+    headers_required = excel_instance.headers_required(headers, columns_headers)
+    data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
+    print("Datos de Eléctricas cargados:", len(data_list), "filas")
+
+elif specialty == "COMUNICACIONES":
+    excel_instance = Excel()
+    excel_rows = excel_instance.read_excel('ESTANDAR COBIE  - IICC')
+    headers = excel_instance.get_headers(excel_rows, 2)
+    headers_required = excel_instance.headers_required(headers, columns_headers)
+    data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
+    print("Datos de Comunicaciones cargados:", len(data_list), "filas")
+
+elif specialty == "INSTALACIONES MECANICAS":
+    excel_instance = Excel()
+    excel_rows = excel_instance.read_excel('ESTANDAR COBIE  - ME')
+    headers = excel_instance.get_headers(excel_rows, 2)
+    headers_required = excel_instance.headers_required(headers, columns_headers)
+    data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
+    print("Datos de Mecánicas cargados:", len(data_list), "filas")
+
+else:
+    forms.alert("Especialidad '{}' no reconocida para cargar datos Excel.".format(specialty), exitscript=True)
+
+if not data_list:
+    forms.alert("No se pudieron cargar los datos del Excel.", exitscript=True)
+# ==== Termino de la lectura de Excel ====
 
 count = 0
 
@@ -202,4 +247,4 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
 
     TaskDialog.Show("Informativo", "Son {} procesados correctamente\npara COBie component".format(count))
 
-print(headers_required)
+print(data_list)

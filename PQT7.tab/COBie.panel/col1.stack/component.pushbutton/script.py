@@ -119,7 +119,7 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
                 continue
             
             # ==== Obtenemos el nivel del elemento ====
-            level_param_value = get_param_value(getParameter(elem, "NIVEL DE ELEMENTO"))
+            level_param_value = get_param_value(getParameter(elem, "S&P_NIVEL DE ELEMENTO"))
             level = divide_string(level_param_value, 1)
             
             # ==== Obtenemos la categoria del elemento y Verificamos que el elemento tenga categoria ====

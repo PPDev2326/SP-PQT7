@@ -11,6 +11,7 @@ from Extensions._Modulo import obtener_nombre_archivo, validar_nombre
 from Extensions._RevitAPI import GetParameterAPI, get_param_value, getParameter
 from DBRepositories.SchoolRepository import ColegiosRepository
 from DBRepositories.SpecialtiesRepository import SpecialtiesRepository
+from Helper._Excel import Excel
 
 nombre_archivo = obtener_nombre_archivo()
 if not validar_nombre(nombre_archivo):
@@ -50,6 +51,17 @@ def divide_string(text, idx, character_divider=None, compare=None, value_default
         return ""
     
     return parts[idx]
+
+columns_headers = [
+    "COBie.Component.InstallationDate",
+    "COBie.Component.TagNumber",
+    "COBie.Component.BarCode"
+]
+
+excel_instance = Excel()
+rows_excel = excel_instance.read_excel("ESTANDAR COBIE  -AR")
+headers = excel_instance.get_headers(rows_excel, 2)
+headers_required = excel_instance.headers_required(headers, columns_headers)
 
 # ==== Obtener el documento activo ====
 doc = revit.doc
@@ -170,7 +182,7 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
 
             parametros = {
                 "COBie.Component.Name": "{} : {} : {} : {}".format(name_category, family_name, name_type, id_elem),
-                "COBie.CreatedBy": created_by,
+                # "COBie.CreatedBy": created_by,
                 "COBie.CreatedOn": CREATED_ON,
                 "COBie.Component.Space": ambiente,
                 "COBie.Component.Description": description,
@@ -189,3 +201,5 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
             count += 1
 
     TaskDialog.Show("Informativo", "Son {} procesados correctamente\npara COBie component".format(count))
+
+print(headers_required)

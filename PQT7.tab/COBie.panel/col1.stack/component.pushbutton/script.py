@@ -56,6 +56,7 @@ def divide_string(text, idx, character_divider=None, compare=None, value_default
 
 columns_headers = [
     "COBie.Component.InstallationDate",
+    "COBie.Component.Description",
     "CODIGO"
 ]
 
@@ -289,6 +290,17 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
                             except Exception as e:
                                 errores.append("Elemento {}: Error en fecha - {}".format(id_elem, str(e)))
 
+            # ==== Description desde Excel ====
+            if "COBie.Component.Description" in data_row:
+                desc_excel = data_row["COBie.Component.Description"]
+                if desc_excel and str(desc_excel).strip().lower() not in ("", "n/a"):
+                    param_desc = getParameter(elem, "COBie.Component.Description")
+                    if param_desc and not param_desc.IsReadOnly:
+                        try:
+                            SetParameter(param_desc, str(desc_excel))
+                        except Exception as e:
+                            errores.append("Elemento {}: Error en descripción - {}".format(id_elem, str(e)))
+
             # ==== Verificar si SerialNumber está vacío antes de asignar ====
             param_serial = elem.LookupParameter("COBie.Component.SerialNumber")
             serial_value = get_param_value(param_serial) if param_serial else None
@@ -304,7 +316,7 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
                 "COBie.Component.Name": "{} : {} : {} : {}".format(name_category, family_name, name_type, id_elem),
                 "COBie.CreatedOn": CREATED_ON,
                 # "COBie.Component.Space": ambiente,
-                "COBie.Component.Description": description,
+                "COBie.CreatedBy": created_by,
                 "COBie.Component.SerialNumber": serial_number_value,
                 "COBie.Component.WarrantyStartDate": warranty_start_date,
                 "COBie.Component.TagNumber": tag_number,

@@ -119,13 +119,16 @@ if specialty_object:
 # ==== Obtenemos la hoja excel de acuerdo a la especialidad ====
 data_list = None
 
+print("\n" + "="*70)
+print("PROCESAMIENTO COBie COMPONENT - {}".format(specialty))
+print("="*70)
+
 if specialty == "ARQUITECTURA":
     excel_instance = Excel()
     excel_rows = excel_instance.read_excel('ESTANDAR COBIE  -AR')
     headers = excel_instance.get_headers(excel_rows, 2)
     headers_required = excel_instance.headers_required(headers, columns_headers)
     data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
-    print("Datos de Arquitectura cargados:", len(data_list), "filas")
 
 elif specialty == "INSTALACIONES SANITARIAS":
     excel_instance = Excel()
@@ -133,7 +136,6 @@ elif specialty == "INSTALACIONES SANITARIAS":
     headers = excel_instance.get_headers(excel_rows, 2)
     headers_required = excel_instance.headers_required(headers, columns_headers)
     data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
-    print("Datos de Sanitarias cargados:", len(data_list), "filas")
 
 elif specialty == "INSTALACIONES ELECTRICAS":
     excel_instance = Excel()
@@ -141,7 +143,6 @@ elif specialty == "INSTALACIONES ELECTRICAS":
     headers = excel_instance.get_headers(excel_rows, 2)
     headers_required = excel_instance.headers_required(headers, columns_headers)
     data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
-    print("Datos de Eléctricas cargados:", len(data_list), "filas")
 
 elif specialty == "COMUNICACIONES":
     excel_instance = Excel()
@@ -149,7 +150,6 @@ elif specialty == "COMUNICACIONES":
     headers = excel_instance.get_headers(excel_rows, 2)
     headers_required = excel_instance.headers_required(headers, columns_headers)
     data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
-    print("Datos de Comunicaciones cargados:", len(data_list), "filas")
 
 elif specialty == "INSTALACIONES MECANICAS":
     excel_instance = Excel()
@@ -157,7 +157,6 @@ elif specialty == "INSTALACIONES MECANICAS":
     headers = excel_instance.get_headers(excel_rows, 2)
     headers_required = excel_instance.headers_required(headers, columns_headers)
     data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
-    print("Datos de Mecánicas cargados:", len(data_list), "filas")
 
 else:
     forms.alert("Especialidad '{}' no reconocida para cargar datos Excel.".format(specialty), exitscript=True)
@@ -165,34 +164,30 @@ else:
 if not data_list:
     forms.alert("No se pudieron cargar los datos del Excel.", exitscript=True)
 
-# ==== DEBUG: Verificar formato de datos del Excel ====
-if data_list:
-    print("\n=== VERIFICACION DE DATOS DEL EXCEL ===")
-    print("Primera fila de ejemplo:")
-    primera_fila = data_list[0]
-    for key, value in primera_fila.items():
-        print("  {}: {} (tipo: {})".format(key, value, type(value).__name__))
-    print("=====================================\n")
-
-# ==== Termino de la lectura de Excel ====
+print("[OK] Excel cargado: {} registros disponibles".format(len(data_list)))
 
 # ==== Creamos nuevo diccionario que contendra el codigo y sus valores ====
 dict_codigos = {}
 for row in data_list:
-    code = row["CODIGO"] # Obtenemos el valor del codigo
+    code = row["CODIGO"]
     dict_codigos[code] = row
 
+# ==== Contadores para estadísticas ====
 count = 0
+fechas_actualizadas = 0
+serial_actualizados = 0
+elementos_sin_codigo = 0
+errores = []
+
+print("\nIniciando procesamiento de elementos...")
+print("-"*70)
 
 with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
 
     for reference in references:
-        # ==== Obtenemos el elemento seleccionado ====
         element_object = doc.GetElement(reference)
-
         elementos_a_procesar = [element_object]
 
-        # ==== Verificar si tiene subcomponentes (solo si es FamilyInstance) ====
         if isinstance(element_object, FamilyInstance):
             try:
                 sub_ids = element_object.GetSubComponentIds()
@@ -207,49 +202,42 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
         for elem in elementos_a_procesar:
             uid_elem = elem.UniqueId
             
-            # ==== Validar el parámetro COBie ====
             cobie = elem.LookupParameter("COBie")
             if not (cobie and not cobie.IsReadOnly and cobie.StorageType == StorageType.Integer and cobie.AsInteger() == 1):
                 continue
             
-            # ==== Obtenemos el nivel del elemento ====
             level_param_value = get_param_value(getParameter(elem, "S&P_NIVEL DE ELEMENTO"))
             level = divide_string(level_param_value, 1)
             
-            # ==== Obtenemos la categoria del elemento y Verificamos que el elemento tenga categoria ====
             elem_category_object = elem.Category
             name_category = elem_category_object.Name if elem_category_object else "Sin categoria"
             
-
             id_elem = elem.Id.IntegerValue
             
-            # ==== Obtenemos el tipo del elemento seleccionado y su nombre ====
-            element_type_object_id = elem.GetTypeId()             # => Obtenemos el ElementId del elemento
+            element_type_object_id = elem.GetTypeId()
             if element_type_object_id == ElementId.InvalidElementId:
-                print("El elemento id" + str(id_elem) + " no tiene un tipo asociado.")
+                errores.append("Elemento ID {} sin tipo asociado".format(id_elem))
                 continue
-            el_type_object = doc.GetElement(element_type_object_id)     # => Obtenemos el Tipo de elemento por medio de su ID
+            
+            el_type_object = doc.GetElement(element_type_object_id)
             param_object_type = GetParameterAPI(el_type_object, BuiltInParameter.SYMBOL_NAME_PARAM)
             name_type = get_param_value(param_object_type)
             pr_number = get_param_value(getParameter(elem, "Classification.Uniclass.Pr.Number"))
 
-            # ==== Obtenemos la familia del elemento y Verificamos que exista ====
             family_name = el_type_object.FamilyName if isinstance(el_type_object, ElementType) else "Sin familia"
 
-            # ==== Obtenemos la zonificacion del MBR ====
             zonification_value = get_param_value(getParameter(elem, "S&P_ZONIFICACION"))
             mbr_value = divide_string(zonification_value, 1, compare="sitio", value_default="000")
             
-            # ==== Obtenemos el ambiente del elemento ====
             ambiente_object = getParameter(elem, "S&P_AMBIENTE")
             ambiente = get_param_value(ambiente_object)
             
-            # ==== Obtenemos el codigo del elemento ====
             code_elem = get_param_value(getParameter(elem, "S&P_CODIGO DE ELEMENTO"))
             if code_elem not in (None, "", "n/a"):
                 code_elem
+            else:
+                elementos_sin_codigo += 1
             
-            # ==== Obtenemos el parametro partida N°xx de acuerdo a la especialidad ====
             if specialty in ["INSTALACIONES SANITARIAS", "COMUNICACIONES"]:
                 description = get_first_valid_parameter(
                     elem,
@@ -266,69 +254,54 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
                 data_row = dict_codigos[code_elem]
                 
                 if "COBie.Component.InstallationDate" in data_row:
-                    # Línea 1: Obtenemos el valor del Excel
                     fecha_excel = data_row["COBie.Component.InstallationDate"]
                     
-                    # Línea 2: Verificamos que no sea None o vacío
                     if fecha_excel and fecha_excel not in ("", "n/a", None):
-                        # Línea 3: Obtenemos el parámetro de Revit
                         param_installation_date = getParameter(elem, "COBie.Component.InstallationDate")
                         
-                        # Línea 4: Verificamos que el parámetro existe y no es de solo lectura
                         if param_installation_date and not param_installation_date.IsReadOnly:
                             try:
-                                # Línea 5: Verificamos si es un número (serial de Excel)
                                 if isinstance(fecha_excel, (int, float)):
-                                    # Línea 6: Excel cuenta días desde 30 de diciembre de 1899
                                     fecha_base = datetime(1899, 12, 30)
-                                    
-                                    # Línea 7: Sumamos los días del serial para obtener la fecha real
                                     fecha_convertida = fecha_base + timedelta(days=float(fecha_excel))
-                                    
-                                    # Línea 8: Formateamos la fecha al formato ISO que usa COBie
                                     fecha_formateada = fecha_convertida.strftime("%Y-%m-%d")
                                     
-                                # Línea 9: Si ya viene como datetime de Python
                                 elif hasattr(fecha_excel, 'strftime'):
                                     fecha_formateada = fecha_excel.strftime("%Y-%m-%d")
                                     
-                                # Línea 10: Si viene como string, lo dejamos tal cual
                                 elif isinstance(fecha_excel, str):
                                     fecha_formateada = fecha_excel
                                     
-                                # Línea 11: Para cualquier otro tipo, convertimos a string
                                 else:
                                     fecha_formateada = str(fecha_excel)
                                 
-                                # Línea 12: Asignamos el valor convertido al parámetro
                                 SetParameter(param_installation_date, fecha_formateada)
-                                
-                                # Línea 13: Imprimimos para debug (opcional - puedes comentar después)
-                                print("Elemento {}: Fecha convertida {} -> {}".format(
-                                    id_elem, fecha_excel, fecha_formateada
-                                ))
+                                fechas_actualizadas += 1
                                 
                             except Exception as e:
-                                # Línea 14: Si hay error, lo mostramos en consola
-                                print("ERROR convirtiendo fecha para elemento {}: {}".format(
-                                    id_elem, str(e)
-                                ))
-                                print("  Valor recibido: {} (tipo: {})".format(
-                                    fecha_excel, type(fecha_excel).__name__
-                                ))
+                                errores.append("Elemento {}: Error en fecha - {}".format(id_elem, str(e)))
+
+            # ==== Verificar si SerialNumber está vacío antes de asignar ====
+            param_serial = elem.LookupParameter("COBie.Component.SerialNumber")
+            serial_value = get_param_value(param_serial) if param_serial else None
+            
+            # Solo asignar si está vacío o es None
+            if not serial_value or serial_value.strip() in ("", "n/a"):
+                serial_number_value = "{} {}".format(code_elem, id_elem)
+                serial_actualizados += 1
+            else:
+                serial_number_value = serial_value  # Mantener el valor existente
 
             parametros = {
                 "COBie.Component.Name": "{} : {} : {} : {}".format(name_category, family_name, name_type, id_elem),
-                # "COBie.CreatedBy": created_by,
                 "COBie.CreatedOn": CREATED_ON,
                 "COBie.Component.Space": ambiente,
                 "COBie.Component.Description": description,
-                "COBie.Component.SerialNumber": "{} {}".format(code_elem, id_elem),
-                # "COBie.Component.InstallationDate": "",  # Este se maneja arriba con la conversión
+                "COBie.Component.SerialNumber": serial_number_value,
                 "COBie.Component.WarrantyStartDate": warranty_start_date,
                 "COBie.Component.TagNumber": "",
                 "COBie.Component.BarCode": "{}{}".format(mbr_value, id_elem),
-                "COBie.Component.AssetIdentifier": "{}-ZZ-{}-".format(mbr_value, level)
+                "COBie.Component.AssetIdentifier": "{}-ZZ-{}-{}-{}".format(mbr_value, level, pr_number,mbr_value+id_elem )
             }
 
             for param_name, value in parametros.items():
@@ -337,4 +310,28 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
                     SetParameter(param, value)
             count += 1
 
-    TaskDialog.Show("Informativo", "Son {} procesados correctamente\npara COBie component".format(count))
+# ==== RESUMEN DE PROCESAMIENTO ====
+print("\n" + "="*70)
+print("RESUMEN DE PROCESAMIENTO")
+print("="*70)
+print("Elementos procesados:        {}".format(count))
+print("Fechas actualizadas:         {}".format(fechas_actualizadas))
+print("SerialNumbers actualizados:  {}".format(serial_actualizados))
+if elementos_sin_codigo > 0:
+    print("Elementos sin codigo:        {} (ADVERTENCIA)".format(elementos_sin_codigo))
+if errores:
+    print("\nERRORES ENCONTRADOS ({})".format(len(errores)))
+    print("-"*70)
+    for error in errores[:10]:  # Mostrar máximo 10 errores
+        print("  - {}".format(error))
+    if len(errores) > 10:
+        print("  ... y {} errores más".format(len(errores) - 10))
+else:
+    print("Errores:                     0")
+print("="*70 + "\n")
+
+TaskDialog.Show("COBie Component", 
+    "Procesamiento completado\n\n" +
+    "Elementos procesados: {}\n".format(count) +
+    "Fechas actualizadas: {}\n".format(fechas_actualizadas) +
+    "SerialNumbers actualizados: {}".format(serial_actualizados))

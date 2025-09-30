@@ -8,7 +8,7 @@ from Autodesk.Revit.Exceptions import OperationCanceledException
 from Autodesk.Revit.UI.Selection import ObjectType
 from pyrevit import script, revit, forms
 from Extensions._Modulo import obtener_nombre_archivo, validar_nombre
-from Extensions._RevitAPI import GetParameterAPI, get_param_value, getParameter
+from Extensions._RevitAPI import *
 from DBRepositories.SchoolRepository import ColegiosRepository
 from DBRepositories.SpecialtiesRepository import SpecialtiesRepository
 from Helper._Excel import Excel
@@ -262,8 +262,8 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
 
             for param_name, value in parametros.items():
                 param = elem.LookupParameter(param_name)
-                if param and not param.IsReadOnly:
-                    param.Set(value)
+                if param:
+                    SetParameter(param, value)
             count += 1
 
     TaskDialog.Show("Informativo", "Son {} procesados correctamente\npara COBie component".format(count))

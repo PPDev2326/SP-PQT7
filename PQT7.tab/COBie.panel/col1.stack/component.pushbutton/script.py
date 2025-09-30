@@ -54,7 +54,6 @@ def divide_string(text, idx, character_divider=None, compare=None, value_default
 
 columns_headers = [
     "COBie.Component.InstallationDate",
-    "COBie.Component.BarCode",
     "CODIGO"
 ]
 
@@ -166,6 +165,12 @@ if not data_list:
     forms.alert("No se pudieron cargar los datos del Excel.", exitscript=True)
 # ==== Termino de la lectura de Excel ====
 
+# ==== Creamos nuevo diccionario que contendra el codigo y sus valores ====
+dict_codigos = {}
+for row in data_list:
+    code = row["CODIGO"] # Obtenemos el valor del codigo
+    dict_codigos[code] = row
+
 count = 0
 
 with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
@@ -244,7 +249,13 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
                     elem,
                     ["S&P_DESCRIPCION PARTIDA N°1"]
                 )
-
+            
+            if code_elem in dict_codigos:
+                data_row = dict_codigos[code_elem]
+                
+                if "COBie.Component.InstallationDate" in data_row:
+                    param_installation_date = getParameter(elem, "COBie.Component.InstallationDate")
+                    param_new_installation = SetParameter(param_installation_date, data_row["COBie.Component.InstallationDate"])
 
             parametros = {
                 "COBie.Component.Name": "{} : {} : {} : {}".format(name_category, family_name, name_type, id_elem),
@@ -256,7 +267,7 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
                 "COBie.Component.InstallationDate": "",
                 "COBie.Component.WarrantyStartDate": warranty_start_date,
                 "COBie.Component.TagNumber": "",
-                "COBie.Component.BarCode": "",
+                "COBie.Component.BarCode": "{}{}".format(mbr_value, id_elem),
                 "COBie.Component.AssetIdentifier": "{}-ZZ-{}-".format(mbr_value, level)
             }
 

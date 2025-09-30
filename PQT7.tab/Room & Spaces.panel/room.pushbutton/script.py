@@ -620,9 +620,9 @@ if asignados_fase3 > 0:
     muestra = elementos_activo_ids[:50]
     for elem_id in muestra:
         try:
-            output.linkify(elem_id)
+            output.linkify(ElementId(elem_id))
         except:
-            output.print_md("- ID {}".format(ElementId(elem_id.IntegerValue)))
+            output.print_md("- ID {}".format(elem_id.IntegerValue))
     
     if len(elementos_activo_ids) > 50:
         output.print_md("*Mostrando 50 de {} elementos*".format(len(elementos_activo_ids)))

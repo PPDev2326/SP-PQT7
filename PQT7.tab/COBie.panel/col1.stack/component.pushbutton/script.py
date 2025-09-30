@@ -286,11 +286,11 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
                                     fecha_convertida = fecha_base + timedelta(days=float(fecha_excel))
                                     
                                     # Línea 8: Formateamos la fecha al formato ISO que usa COBie
-                                    fecha_formateada = fecha_convertida.strftime("%Y-%m-%dT00:00:00")
+                                    fecha_formateada = fecha_convertida.strftime("%Y-%m-%d")
                                     
                                 # Línea 9: Si ya viene como datetime de Python
                                 elif hasattr(fecha_excel, 'strftime'):
-                                    fecha_formateada = fecha_excel.strftime("%Y-%m-%dT00:00:00")
+                                    fecha_formateada = fecha_excel.strftime("%Y-%m-%d")
                                     
                                 # Línea 10: Si viene como string, lo dejamos tal cual
                                 elif isinstance(fecha_excel, str):
@@ -338,5 +338,3 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
             count += 1
 
     TaskDialog.Show("Informativo", "Son {} procesados correctamente\npara COBie component".format(count))
-
-print(data_list)

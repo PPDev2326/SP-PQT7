@@ -126,20 +126,28 @@ def procesar_puerta_ventana(elemento, habitaciones, failed_list):
         if not rooms_con_datos:
             return False
 
+        # ✅ Quitar duplicados por nombre
+        vistos = {}
+        for num, nom in rooms_con_datos:
+            if nom not in vistos:
+                vistos[nom] = num  # guardamos el primer número asociado
+                
+        rooms_unicos = [(num, nom) for nom, num in vistos.items()]
+        
         # Ordenar por número
-        rooms_con_datos.sort(key=lambda x: extraer_numero_para_ordenar(x[0]))
-
+        rooms_unicos.sort(key=lambda x: extraer_numero_para_ordenar(x[0]))
+        
         # Construir cadena
-        if len(rooms_con_datos) >= 2:
+        if len(rooms_unicos) >= 2:
             nombre_combinado = "{} : {}, {} : {}".format(
-                rooms_con_datos[0][0], rooms_con_datos[0][1],
-                rooms_con_datos[1][0], rooms_con_datos[1][1]
+                rooms_unicos[0][0], rooms_unicos[0][1],
+                rooms_unicos[1][0], rooms_unicos[1][1]
             )
         else:
             nombre_combinado = "{} : {}".format(
-                rooms_con_datos[0][0], rooms_con_datos[0][1]
+                rooms_unicos[0][0], rooms_unicos[0][1]
             )
-
+            
         return asignar_ambiente_puerta_ventana(elemento, nombre_combinado, nombre_combinado, failed_list)
 
     except Exception as e:

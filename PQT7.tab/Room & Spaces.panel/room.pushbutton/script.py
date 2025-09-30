@@ -498,8 +498,9 @@ output.print_md("### Habitaciones disponibles: {}".format(len(habs)))
 elems = obtener_elementos_de_categorias(doc, sels_cats)
 output.print_md("### Elementos encontrados: {}".format(len(elems)))
 
-# Tracking
-elems_asignados = set()
+# Tracking - AHORA GUARDAMOS ELEMENTOS COMPLETOS, NO SOLO IDs
+elems_asignados = set()  # Set de ElementIds
+elementos_fase3 = []  # Lista de ELEMENTOS completos asignados como "Activo"
 elems_ignorados_cobie = []
 elems_ignorados_llenos = []
 failed_param = []
@@ -572,7 +573,7 @@ with revit.Transaction("Asignar Ambiente"):
             elems_asignados.add(e.Id)
             asignados_fase2 += 1
     
-    # Fase 3: Resto como "Activo"
+    # Fase 3: Resto como "Activo" - GUARDAR LOS ELEMENTOS COMPLETOS
     output.print_md("#### Procesando Fase 3: Elementos restantes como '{}'...".format(FALLBACK_VALUE))
     for e in elems:
         if e.Id in elems_asignados or e.Id in elems_ignorados_cobie or e.Id in elems_ignorados_llenos:
@@ -580,6 +581,7 @@ with revit.Transaction("Asignar Ambiente"):
         
         if asignar_ambiente(e, FALLBACK_VALUE, "", failed_param):
             elems_asignados.add(e.Id)
+            elementos_fase3.append(e)  # GUARDAR EL ELEMENTO COMPLETO
             asignados_fase3 += 1
 
 # ==================== RESULTADOS ====================
@@ -599,32 +601,21 @@ output.print_md("- **Ignorados** (COBie inactivo o parámetros llenos): {}".form
 output.print_md("- **Sin asignar** (sin parámetros válidos): {}".format(len(failed_param)))
 
 # Mostrar elementos asignados como "Activo" (para revisión manual)
-if asignados_fase3 > 0:
+if asignados_fase3 > 0 and elementos_fase3:
     output.print_md("---")
     output.print_md("### ⚠️ Elementos asignados como '{}' (requieren revisión manual)".format(FALLBACK_VALUE))
-    output.print_md("Total: {} elementos".format(asignados_fase3))
+    output.print_md("Total: {} elementos".format(len(elementos_fase3)))
     output.print_md("Haz clic en los IDs para seleccionarlos en Revit:")
+    output.print_md("")  # Línea en blanco
     
-    # Recolectar elementos completos asignados como "Activo"
-    elementos_activo = []
-    for e in elems:
-        if e.Id in elems_asignados:
-            try:
-                prm = e.LookupParameter(PARAM_NAME)
-                if prm and prm.AsString() == FALLBACK_VALUE:
-                    elementos_activo.append(e)
-            except:
-                continue
-    
-    # Mostrar con links seleccionables (máximo 50 para no saturar)
-    muestra = elementos_activo[:50]
-    output.print_md("")  # Línea en blanco para separación
+    # Mostrar hasta 50 elementos con links clickeables
+    muestra = elementos_fase3[:50]
     for elem in muestra:
         output.print_element(elem)
     
-    if len(elementos_activo) > 50:
+    if len(elementos_fase3) > 50:
         output.print_md("")
-        output.print_md("*Mostrando 50 de {} elementos*".format(len(elementos_activo)))
+        output.print_md("*Mostrando 50 de {} elementos*".format(len(elementos_fase3)))
 
 if failed_param:
     output.print_md("---")

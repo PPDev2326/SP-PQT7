@@ -605,24 +605,24 @@ if asignados_fase3 > 0:
     output.print_md("Total: {} elementos".format(asignados_fase3))
     output.print_md("Haz clic en los IDs para seleccionarlos en Revit:\n")
     
-    # Recolectar elementos asignados como "Activo"
-    elementos_activo = []
+    # Recolectar IDs de elementos asignados como "Activo"
+    elementos_activo_ids = []
     for e in elems:
         if e.Id in elems_asignados:
             try:
                 prm = e.LookupParameter(PARAM_NAME)
                 if prm and prm.AsString() == FALLBACK_VALUE:
-                    elementos_activo.append(e)
+                    elementos_activo_ids.append(e.Id)
             except:
                 continue
     
     # Mostrar con links seleccionables (máximo 50 para no saturar)
-    muestra = elementos_activo[:50]
-    for elem in muestra:
-        output.linkify(elem.Id)
+    muestra = elementos_activo_ids[:50]
+    for elem_id in muestra:
+        output.linkify(elem_id)
     
-    if len(elementos_activo) > 50:
-        output.print_md("\n*Mostrando 50 de {} elementos*".format(len(elementos_activo)))
+    if len(elementos_activo_ids) > 50:
+        output.print_md("\n*Mostrando 50 de {} elementos*".format(len(elementos_activo_ids)))
 
 if failed_param:
     output.print_md("---")

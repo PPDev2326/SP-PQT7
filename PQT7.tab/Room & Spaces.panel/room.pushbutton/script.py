@@ -603,7 +603,7 @@ if asignados_fase3 > 0:
     output.print_md("---")
     output.print_md("### ⚠️ Elementos asignados como '{}' (requieren revisión manual)".format(FALLBACK_VALUE))
     output.print_md("Total: {} elementos".format(asignados_fase3))
-    output.print_md("Haz clic en los IDs para seleccionarlos en Revit:\n")
+    output.print_md("Haz clic en los IDs para seleccionarlos en Revit:")
     
     # Recolectar IDs de elementos asignados como "Activo"
     elementos_activo_ids = []
@@ -619,19 +619,19 @@ if asignados_fase3 > 0:
     # Mostrar con links seleccionables (máximo 50 para no saturar)
     muestra = elementos_activo_ids[:50]
     for elem_id in muestra:
-        output.linkify(elem_id)
+        output.print_element(elem_id)
     
     if len(elementos_activo_ids) > 50:
-        output.print_md("\n*Mostrando 50 de {} elementos*".format(len(elementos_activo_ids)))
+        output.print_md("*Mostrando 50 de {} elementos*".format(len(elementos_activo_ids)))
 
 if failed_param:
     output.print_md("---")
-    output.print_md("### ❌ Elementos sin parámetros válidos\n")
+    output.print_md("### ❌ Elementos sin parámetros válidos")
     sample = failed_param[:15]
     for elem_id in sample:
-        output.linkify(elem_id)
+        output.print_element(elem_id)
     if len(failed_param) > 15:
-        output.print_md("\n*Mostrando 15 de {} elementos*".format(len(failed_param)))
+        output.print_md("*Mostrando 15 de {} elementos*".format(len(failed_param)))
 
 forms.alert(
     "Proceso terminado:\n\n"

@@ -618,15 +618,12 @@ if asignados_fase3 > 0:
     
     # Mostrar con links seleccionables (máximo 50 para no saturar)
     muestra = elementos_activo[:50]
+    output.print_md("")  # Línea en blanco para separación
     for elem in muestra:
-        try:
-            cat_name = elem.Category.Name if elem.Category else "Sin categoría"
-            output.print_md("- **{}**: ".format(cat_name), end="")
-            output.linkify(elem.Id)
-        except:
-            output.print_md("- ID {}".format(elem.Id.IntegerValue))
+        output.print_element(elem.Id)
     
     if len(elementos_activo) > 50:
+        output.print_md("")
         output.print_md("*Mostrando 50 de {} elementos*".format(len(elementos_activo)))
 
 if failed_param:

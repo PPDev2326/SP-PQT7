@@ -18,16 +18,30 @@ def SetParameter(parameter, new_value):
     :return: True si se seteó correctamente, False si fue de solo lectura o inválido."""
     if parameter and not parameter.IsReadOnly:
         try:
-            if parameter.StorageType == StorageType.String:
+            st = parameter.StorageType
+
+            if st == StorageType.String:
                 parameter.Set(str(new_value))
-            elif parameter.StorageType == StorageType.Double:
+
+            elif st == StorageType.Double:
                 parameter.Set(float(new_value))
-            elif parameter.StorageType == StorageType.Integer:
+
+            elif st == StorageType.Integer:
                 parameter.Set(int(new_value))
-            elif parameter.StorageType == StorageType.ElementId:
+
+            elif st == StorageType.ElementId:
                 if isinstance(new_value, ElementId):
                     parameter.Set(new_value)
+                elif isinstance(new_value, int):
+                    parameter.Set(ElementId(new_value))
+                elif isinstance(new_value, str) and new_value.isdigit():
+                    parameter.Set(ElementId(int(new_value)))
+                else:
+                    print("⚠️ Valor no válido para ElementId:", new_value)
+                    return False
+
             return True
+
         except Exception as e:
             print("Error al setear el parámetro:", e)
     return False

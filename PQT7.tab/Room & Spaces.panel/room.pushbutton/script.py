@@ -86,6 +86,7 @@ def procesar_puerta_ventana(elemento, habitaciones, failed_list):
     try:
         rooms_unicos = []
         ids_usados = set()
+        nombres_usados = set()
         
         # PASO 1: Intentar FromRoom y ToRoom
         from_room = None
@@ -101,8 +102,10 @@ def procesar_puerta_ventana(elemento, habitaciones, failed_list):
             nombre = get_room_name(from_room)
             numero = get_room_number(from_room)
             if nombre and numero:
-                rooms_unicos.append((numero, nombre.upper(), from_room.Id))
+                nombre_upper = nombre.upper()
+                rooms_unicos.append((numero, nombre_upper, from_room.Id))
                 ids_usados.add(from_room.Id.IntegerValue)
+                nombres_usados.add(nombre_upper)
 
         # Agregar ToRoom si es válido y diferente
         if to_room and to_room.Id.IntegerValue not in ids_usados:
@@ -111,41 +114,52 @@ def procesar_puerta_ventana(elemento, habitaciones, failed_list):
             if nombre and numero:
                 nombre_upper = nombre.upper()
                 # Solo agregar si el NOMBRE es diferente
-                if not any(nom == nombre_upper for _, nom, _ in rooms_unicos):
+                if nombre_upper not in nombres_usados:
                     rooms_unicos.append((numero, nombre_upper, to_room.Id))
                     ids_usados.add(to_room.Id.IntegerValue)
+                    nombres_usados.add(nombre_upper)
 
         # PASO 2: Si tenemos menos de 2 ambientes, buscar por proximidad
         if len(rooms_unicos) < 2:
             pts = puntos_representativos(elemento) or []
-            if pts:
-                # Intentar con diferentes puntos del elemento
-                for punto in pts:
-                    if not punto or len(rooms_unicos) >= 2:
-                        break
+            
+            # Obtener TODOS los rooms cercanos de todos los puntos
+            candidatos = []
+            for punto in pts:
+                if not punto:
+                    continue
                     
-                    dos_cercanos = obtener_dos_rooms_mas_cercanos(habitaciones, punto)
-                    
-                    for distancia, room in dos_cercanos:
-                        if len(rooms_unicos) >= 2:
-                            break
-                        
-                        # Saltar si ya usamos este room
-                        if room.Id.IntegerValue in ids_usados:
-                            continue
-                        
-                        nombre = get_room_name(room)
-                        numero = get_room_number(room)
-                        
-                        if not nombre or not numero:
-                            continue
-                        
-                        nombre_upper = nombre.upper()
-                        
-                        # Solo agregar si el NOMBRE es diferente a los ya agregados
-                        if not any(nom == nombre_upper for _, nom, _ in rooms_unicos):
-                            rooms_unicos.append((numero, nombre_upper, room.Id))
-                            ids_usados.add(room.Id.IntegerValue)
+                cercanos = obtener_dos_rooms_mas_cercanos(habitaciones, punto)
+                for distancia, room in cercanos:
+                    # Solo agregar si no está en candidatos ya
+                    if room.Id.IntegerValue not in [r.Id.IntegerValue for d, r in candidatos]:
+                        candidatos.append((distancia, room))
+            
+            # Ordenar candidatos por distancia
+            candidatos.sort(key=lambda x: x[0])
+            
+            # Intentar agregar hasta tener 2 rooms diferentes
+            for distancia, room in candidatos:
+                if len(rooms_unicos) >= 2:
+                    break
+                
+                # Saltar si ya usamos este room
+                if room.Id.IntegerValue in ids_usados:
+                    continue
+                
+                nombre = get_room_name(room)
+                numero = get_room_number(room)
+                
+                if not nombre or not numero:
+                    continue
+                
+                nombre_upper = nombre.upper()
+                
+                # Solo agregar si el NOMBRE es diferente a los ya agregados
+                if nombre_upper not in nombres_usados:
+                    rooms_unicos.append((numero, nombre_upper, room.Id))
+                    ids_usados.add(room.Id.IntegerValue)
+                    nombres_usados.add(nombre_upper)
 
         # Verificar que tengamos al menos un ambiente
         if not rooms_unicos:
@@ -160,9 +174,12 @@ def procesar_puerta_ventana(elemento, habitaciones, failed_list):
                 rooms_unicos[1][0], rooms_unicos[1][1]
             )
         else:
+            # Solo un ambiente encontrado
             nombre_combinado = "{} : {}".format(
                 rooms_unicos[0][0], rooms_unicos[0][1]
             )
+            # Imprimir advertencia
+            output.print_md("⚠️ Elemento {} solo encontró 1 ambiente: {}".format(elemento.Id, nombre_combinado))
 
         return asignar_ambiente_puerta_ventana(elemento, nombre_combinado, nombre_combinado, failed_list)
 
@@ -395,13 +412,14 @@ if not seleccion:
 sels_cats = [mapeo[n] for n in seleccion]
 output.print_md("### Categorías seleccionadas: {}".format(", ".join(seleccion)))
 
-# Verificar si hay puertas o ventanas seleccionadas
+# Verificar si hay puertas, ventanas o modelos genéricos seleccionados
 tiene_puertas = "Puertas" in seleccion or "Doors" in seleccion
 tiene_ventanas = "Ventanas" in seleccion or "Windows" in seleccion
-procesamiento_especial = tiene_puertas or tiene_ventanas
+tiene_genericos = "Modelos genéricos" in seleccion or "Generic Models" in seleccion
+procesamiento_especial = tiene_puertas or tiene_ventanas or tiene_genericos
 
 if procesamiento_especial:
-    output.print_md("### ℹ️ Se aplicará procesamiento especial para puertas/ventanas (2 ambientes)")
+    output.print_md("### ℹ️ Se aplicará procesamiento especial para puertas/ventanas/modelos genéricos (2 ambientes)")
 
 # 3) Obtener habitaciones
 habs = obtener_habitaciones(doc)
@@ -425,16 +443,16 @@ asignados_especial = 0
 
 with revit.Transaction("Asignar Ambiente"):
     
-    # Procesamiento especial para puertas y ventanas (si aplica)
+    # Procesamiento especial para puertas, ventanas y modelos genéricos (si aplica)
     if procesamiento_especial:
-        output.print_md("#### Procesando puertas y ventanas (2 ambientes)...")
+        output.print_md("#### Procesando puertas, ventanas y modelos genéricos (2 ambientes)...")
         for e in elems:
-            # Solo procesar si es puerta o ventana
+            # Solo procesar si es puerta, ventana o modelo genérico
             try:
                 cat_name = e.Category.Name if e.Category else ""
-                es_puerta_ventana = cat_name in ["Puertas", "Doors", "Ventanas", "Windows"]
+                es_elemento_especial = cat_name in ["Puertas", "Doors", "Ventanas", "Windows", "Modelos genéricos", "Generic Models"]
                 
-                if not es_puerta_ventana:
+                if not es_elemento_especial:
                     continue
                 
                 # Verificar COBie activo

@@ -129,6 +129,12 @@ if specialty == "ARQUITECTURA":
     headers = excel_instance.get_headers(excel_rows, 2)
     headers_required = excel_instance.headers_required(headers, columns_headers)
     data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
+    
+    # ==== Obtenemos tambien los nombres para el TagNumber
+    excel_rows_space = excel_instance.read_excel('ESTANDAR COBie SPACE ')
+    headers_space = excel_instance.get_headers(excel_rows, 2)
+    headers_required_space = excel_instance.headers_required(headers, columns_headers)
+    data_list_space = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
 
 elif specialty == "INSTALACIONES SANITARIAS":
     excel_instance = Excel()
@@ -136,6 +142,12 @@ elif specialty == "INSTALACIONES SANITARIAS":
     headers = excel_instance.get_headers(excel_rows, 2)
     headers_required = excel_instance.headers_required(headers, columns_headers)
     data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
+    
+    # ==== Obtenemos tambien los nombres para el TagNumber
+    excel_rows_space = excel_instance.read_excel('ESTANDAR COBie SPACE ')
+    headers_space = excel_instance.get_headers(excel_rows, 2)
+    headers_required_space = excel_instance.headers_required(headers, columns_headers)
+    data_list_space = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
 
 elif specialty == "INSTALACIONES ELECTRICAS":
     excel_instance = Excel()
@@ -143,6 +155,12 @@ elif specialty == "INSTALACIONES ELECTRICAS":
     headers = excel_instance.get_headers(excel_rows, 2)
     headers_required = excel_instance.headers_required(headers, columns_headers)
     data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
+    
+    # ==== Obtenemos tambien los nombres para el TagNumber
+    excel_rows_space = excel_instance.read_excel('ESTANDAR COBie SPACE ')
+    headers_space = excel_instance.get_headers(excel_rows, 2)
+    headers_required_space = excel_instance.headers_required(headers, columns_headers)
+    data_list_space = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
 
 elif specialty == "COMUNICACIONES":
     excel_instance = Excel()
@@ -150,6 +168,12 @@ elif specialty == "COMUNICACIONES":
     headers = excel_instance.get_headers(excel_rows, 2)
     headers_required = excel_instance.headers_required(headers, columns_headers)
     data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
+    
+    # ==== Obtenemos tambien los nombres para el TagNumber
+    excel_rows_space = excel_instance.read_excel('ESTANDAR COBie SPACE ')
+    headers_space = excel_instance.get_headers(excel_rows, 2)
+    headers_required_space = excel_instance.headers_required(headers, columns_headers)
+    data_list_space = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
 
 elif specialty == "INSTALACIONES MECANICAS":
     excel_instance = Excel()
@@ -157,6 +181,12 @@ elif specialty == "INSTALACIONES MECANICAS":
     headers = excel_instance.get_headers(excel_rows, 2)
     headers_required = excel_instance.headers_required(headers, columns_headers)
     data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
+    
+    # ==== Obtenemos tambien los nombres para el TagNumber
+    excel_rows_space = excel_instance.read_excel('ESTANDAR COBie SPACE ')
+    headers_space = excel_instance.get_headers(excel_rows, 2)
+    headers_required_space = excel_instance.headers_required(headers, columns_headers)
+    data_list_space = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
 
 else:
     forms.alert("Especialidad '{}' no reconocida para cargar datos Excel.".format(specialty), exitscript=True)

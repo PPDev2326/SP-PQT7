@@ -23,6 +23,7 @@ output = script.get_output()
 TOLERANCIA_PIES = 0.410105  # 12.5 cm en pies
 PARAM_NAME = "S&P_AMBIENTE"
 PARAM_COBIE = "COBie.Component.Space"
+PARAM_COBIE_BOOL = "COBie"
 FALLBACK_VALUE = "Activo"
 
 
@@ -36,6 +37,45 @@ def get_room_number(room):
     except:
         pass
     return ""
+
+
+def verificar_parametros_vacios(elemento):
+    """
+    Verifica si los parámetros S&P_AMBIENTE y COBie.Component.Space están vacíos.
+    Retorna True si ambos están vacíos, False si al menos uno tiene valor.
+    """
+    prm_ambiente = elemento.LookupParameter(PARAM_NAME)
+    prm_cobie = elemento.LookupParameter(PARAM_COBIE)
+    
+    ambiente_vacio = True
+    cobie_vacio = True
+    
+    if prm_ambiente and prm_ambiente.StorageType == StorageType.String:
+        valor = prm_ambiente.AsString()
+        if valor and valor.strip():
+            ambiente_vacio = False
+    
+    if prm_cobie and prm_cobie.StorageType == StorageType.String:
+        valor = prm_cobie.AsString()
+        if valor and valor.strip():
+            cobie_vacio = False
+    
+    # Solo procesamos si AMBOS están vacíos
+    return ambiente_vacio and cobie_vacio
+
+
+def verificar_cobie_activo(elemento):
+    """
+    Verifica si el parámetro COBie (bool) está activado (True/Si/1).
+    Retorna True si está activado, False en caso contrario.
+    """
+    try:
+        prm_cobie_bool = elemento.LookupParameter(PARAM_COBIE_BOOL)
+        if prm_cobie_bool and prm_cobie_bool.StorageType == StorageType.Integer:
+            return prm_cobie_bool.AsInteger() == 1
+    except:
+        pass
+    return False
 
 
 def asignar_ambiente(elemento, nombre_ambiente, numero_ambiente, failed_list):
@@ -141,44 +181,33 @@ def obtener_habitaciones(documento):
 
 # ==================== INICIO DEL SCRIPT ====================
 
-# 1) Preguntar si usar categorías de la vista activa
-opciones_fuente = ["Todas las categorías del proyecto", "Solo categorías de la vista activa"]
-fuente_seleccionada = forms.CommandSwitchWindow.show(
-    opciones_fuente,
-    message="¿Qué categorías deseas procesar?"
-)
-
-if not fuente_seleccionada:
-    script.exit()
-
-# 2) Obtener categorías según la opción seleccionada
+# 1) Obtener categorías y preparar opciones
 mapeo = obtener_mapeo_nombres_categorias(doc)
+todas_categorias = sorted(mapeo.keys())
 
-if fuente_seleccionada == opciones_fuente[1]:  # Vista activa
-    vista_activa = doc.ActiveView
-    categorias_vista = set()
-    
-    # Obtener elementos visibles en la vista activa
-    collector = FilteredElementCollector(doc, vista_activa.Id).WhereElementIsNotElementType()
-    for elem in collector:
-        try:
-            if elem.Category and elem.Category.Name in mapeo:
-                categorias_vista.add(elem.Category.Name)
-        except:
-            continue
-    
-    if not categorias_vista:
-        forms.alert("No se encontraron categorías válidas en la vista activa.", exitscript=True)
-    
-    nombres = sorted(categorias_vista)
-    output.print_md("**Fuente:** Categorías de la vista activa ({})".format(vista_activa.Name))
-else:
-    nombres = sorted(mapeo.keys())
-    output.print_md("**Fuente:** Todas las categorías del proyecto")
+# Obtener categorías de la vista activa
+vista_activa = doc.ActiveView
+categorias_vista = set()
+collector = FilteredElementCollector(doc, vista_activa.Id).WhereElementIsNotElementType()
+for elem in collector:
+    try:
+        if elem.Category and elem.Category.Name in mapeo:
+            categorias_vista.add(elem.Category.Name)
+    except:
+        continue
 
-# 3) Selección de categorías
+categorias_vista_ordenadas = sorted(categorias_vista)
+
+# Crear opciones combinadas
+opciones = []
+opciones.append("--- SOLO VISTA ACTIVA ({}) ---".format(vista_activa.Name))
+opciones.extend(categorias_vista_ordenadas)
+opciones.append("--- TODAS LAS CATEGORÍAS DEL PROYECTO ---")
+opciones.extend(todas_categorias)
+
+# 2) Selección de categorías
 seleccion = forms.SelectFromList.show(
-    nombres, 
+    opciones, 
     multiselect=True,
     title="Selecciona categorías a procesar"
 )
@@ -186,8 +215,14 @@ seleccion = forms.SelectFromList.show(
 if not seleccion:
     forms.alert("No se seleccionaron categorías.", exitscript=True)
 
-sels_cats = [mapeo[n] for n in seleccion]
-output.print_md("### Categorías seleccionadas: {}".format(", ".join(seleccion)))
+# Filtrar separadores y determinar categorías seleccionadas
+seleccion_final = [s for s in seleccion if not s.startswith("---")]
+
+if not seleccion_final:
+    forms.alert("No se seleccionaron categorías válidas.", exitscript=True)
+
+sels_cats = [mapeo[n] for n in seleccion_final]
+output.print_md("### Categorías seleccionadas: {}".format(", ".join(seleccion_final)))
 
 # 2) Obtener habitaciones
 habs = obtener_habitaciones(doc)
@@ -199,6 +234,8 @@ output.print_md("### Elementos encontrados: {}".format(len(elems)))
 
 # Tracking
 elems_asignados = set()
+elems_ignorados_cobie = []  # Elementos sin COBie activo
+elems_ignorados_llenos = []  # Elementos con parámetros ya llenos
 failed_param = []
 asignados_fase1 = 0
 asignados_fase2 = 0
@@ -211,6 +248,16 @@ with revit.Transaction("Asignar Ambiente"):
     # Fase 1: Elementos dentro de habitaciones
     output.print_md("#### Procesando Fase 1: Elementos dentro de habitaciones...")
     for e in elems:
+        # Verificar COBie activo
+        if not verificar_cobie_activo(e):
+            elems_ignorados_cobie.append(e.Id)
+            continue
+        
+        # Verificar si parámetros están vacíos
+        if not verificar_parametros_vacios(e):
+            elems_ignorados_llenos.append(e.Id)
+            continue
+        
         if procesar_elemento_fase1(e, habs, failed_param):
             elems_asignados.add(e.Id)
             asignados_fase1 += 1
@@ -218,8 +265,9 @@ with revit.Transaction("Asignar Ambiente"):
     # Fase 2: Proximidad
     output.print_md("#### Procesando Fase 2: Elementos por proximidad...")
     for e in elems:
-        if e.Id in elems_asignados:
+        if e.Id in elems_asignados or e.Id in elems_ignorados_cobie or e.Id in elems_ignorados_llenos:
             continue
+        
         if procesar_elemento_fase2(e, habs, failed_param):
             elems_asignados.add(e.Id)
             asignados_fase2 += 1
@@ -227,8 +275,9 @@ with revit.Transaction("Asignar Ambiente"):
     # Fase 3: Resto como "Activo"
     output.print_md("#### Procesando Fase 3: Elementos restantes como '{}'...".format(FALLBACK_VALUE))
     for e in elems:
-        if e.Id in elems_asignados:
+        if e.Id in elems_asignados or e.Id in elems_ignorados_cobie or e.Id in elems_ignorados_llenos:
             continue
+        
         if asignar_ambiente(e, FALLBACK_VALUE, "", failed_param):
             elems_asignados.add(e.Id)
             asignados_fase3 += 1
@@ -236,6 +285,7 @@ with revit.Transaction("Asignar Ambiente"):
 # ==================== RESULTADOS ====================
 
 total_asignados = asignados_fase1 + asignados_fase2 + asignados_fase3
+total_ignorados = len(elems_ignorados_cobie) + len(elems_ignorados_llenos)
 
 output.print_md("---")
 output.print_md("### 📊 Resumen de Resultados")
@@ -243,7 +293,21 @@ output.print_md("- **Fase 1** (dentro de habitación): {}".format(asignados_fase
 output.print_md("- **Fase 2** (por proximidad): {}".format(asignados_fase2))
 output.print_md("- **Fase 3** (como '{}'): {}".format(FALLBACK_VALUE, asignados_fase3))
 output.print_md("- **Total asignados**: {}".format(total_asignados))
+output.print_md("- **Ignorados** (COBie inactivo): {}".format(len(elems_ignorados_cobie)))
+output.print_md("- **Ignorados** (parámetros ya llenos): {}".format(len(elems_ignorados_llenos)))
 output.print_md("- **Sin asignar**: {}".format(len(failed_param)))
+
+if elems_ignorados_cobie:
+    sample = elems_ignorados_cobie[:10]
+    lines = ["- Id {}".format(i) for i in sample]
+    extra = " (mostrando 10 de {})".format(len(elems_ignorados_cobie)) if len(elems_ignorados_cobie) > 10 else ""
+    output.print_md("#### ℹ️ Ignorados por COBie inactivo{}:\n{}".format(extra, "\n".join(lines)))
+
+if elems_ignorados_llenos:
+    sample = elems_ignorados_llenos[:10]
+    lines = ["- Id {}".format(i) for i in sample]
+    extra = " (mostrando 10 de {})".format(len(elems_ignorados_llenos)) if len(elems_ignorados_llenos) > 10 else ""
+    output.print_md("#### ℹ️ Ignorados por parámetros ya llenos{}:\n{}".format(extra, "\n".join(lines)))
 
 if failed_param:
     sample = failed_param[:15]
@@ -256,6 +320,7 @@ if failed_param:
 forms.alert(
     "Proceso terminado:\n\n"
     "✅ {} elementos asignados\n"
-    "❌ {} sin asignar (sin parámetros válidos)".format(total_asignados, len(failed_param)),
+    "⏭️ {} elementos ignorados\n"
+    "❌ {} sin asignar (sin parámetros válidos)".format(total_asignados, total_ignorados, len(failed_param)),
     title="Asignación Completada"
 )

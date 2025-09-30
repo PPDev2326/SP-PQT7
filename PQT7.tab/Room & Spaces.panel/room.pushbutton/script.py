@@ -86,7 +86,21 @@ def procesar_puerta_ventana(elemento, habitaciones, failed_list):
     try:
         rooms_unicos = []
         ids_usados = set()
-        numeros_usados = set()  # Cambiado: ahora comparamos por NÚMERO no por nombre
+        numeros_usados = set()
+        
+        # Obtener el nivel del elemento para filtrar habitaciones
+        elemento_nivel_id = None
+        try:
+            elemento_nivel_id = elemento.LevelId if hasattr(elemento, 'LevelId') else None
+        except:
+            pass
+        
+        # Filtrar habitaciones del mismo nivel si es posible
+        habitaciones_filtradas = habitaciones
+        if elemento_nivel_id and elemento_nivel_id.IntegerValue != -1:
+            habs_mismo_nivel = [h for h in habitaciones if h.LevelId == elemento_nivel_id]
+            if habs_mismo_nivel:
+                habitaciones_filtradas = habs_mismo_nivel
         
         # PASO 1: Intentar FromRoom y ToRoom
         from_room = None
@@ -97,39 +111,43 @@ def procesar_puerta_ventana(elemento, habitaciones, failed_list):
         except:
             pass
 
-        # Agregar FromRoom si es válido
+        # Agregar FromRoom si es válido y del mismo nivel
         if from_room:
-            nombre = get_room_name(from_room)
-            numero = get_room_number(from_room)
-            if nombre and numero:
-                nombre_upper = nombre.upper()
-                rooms_unicos.append((numero, nombre_upper, from_room.Id))
-                ids_usados.add(from_room.Id.IntegerValue)
-                numeros_usados.add(numero)  # Guardamos el NÚMERO
-
-        # Agregar ToRoom si es válido y diferente
-        if to_room and to_room.Id.IntegerValue not in ids_usados:
-            nombre = get_room_name(to_room)
-            numero = get_room_number(to_room)
-            if nombre and numero:
-                nombre_upper = nombre.upper()
-                # Solo agregar si el NÚMERO es diferente (no el nombre)
-                if numero not in numeros_usados:
-                    rooms_unicos.append((numero, nombre_upper, to_room.Id))
-                    ids_usados.add(to_room.Id.IntegerValue)
+            # Verificar que sea del mismo nivel
+            if not elemento_nivel_id or from_room.LevelId == elemento_nivel_id:
+                nombre = get_room_name(from_room)
+                numero = get_room_number(from_room)
+                if nombre and numero:
+                    nombre_upper = nombre.upper()
+                    rooms_unicos.append((numero, nombre_upper, from_room.Id))
+                    ids_usados.add(from_room.Id.IntegerValue)
                     numeros_usados.add(numero)
+
+        # Agregar ToRoom si es válido, diferente y del mismo nivel
+        if to_room and to_room.Id.IntegerValue not in ids_usados:
+            # Verificar que sea del mismo nivel
+            if not elemento_nivel_id or to_room.LevelId == elemento_nivel_id:
+                nombre = get_room_name(to_room)
+                numero = get_room_number(to_room)
+                if nombre and numero:
+                    nombre_upper = nombre.upper()
+                    # Solo agregar si el NÚMERO es diferente
+                    if numero not in numeros_usados:
+                        rooms_unicos.append((numero, nombre_upper, to_room.Id))
+                        ids_usados.add(to_room.Id.IntegerValue)
+                        numeros_usados.add(numero)
 
         # PASO 2: Si tenemos menos de 2 ambientes, buscar por proximidad
         if len(rooms_unicos) < 2:
             pts = puntos_representativos(elemento) or []
             
-            # Obtener TODOS los rooms cercanos de todos los puntos
+            # Obtener TODOS los rooms cercanos de todos los puntos (del mismo nivel)
             candidatos = []
             for punto in pts:
                 if not punto:
                     continue
                     
-                cercanos = obtener_dos_rooms_mas_cercanos(habitaciones, punto)
+                cercanos = obtener_dos_rooms_mas_cercanos(habitaciones_filtradas, punto)
                 for distancia, room in cercanos:
                     # Solo agregar si no está en candidatos ya
                     if room.Id.IntegerValue not in [r.Id.IntegerValue for d, r in candidatos]:
@@ -155,7 +173,7 @@ def procesar_puerta_ventana(elemento, habitaciones, failed_list):
                 
                 nombre_upper = nombre.upper()
                 
-                # Solo agregar si el NÚMERO es diferente (no el nombre)
+                # Solo agregar si el NÚMERO es diferente
                 if numero not in numeros_usados:
                     rooms_unicos.append((numero, nombre_upper, room.Id))
                     ids_usados.add(room.Id.IntegerValue)
@@ -178,10 +196,6 @@ def procesar_puerta_ventana(elemento, habitaciones, failed_list):
             nombre_combinado = "{} : {}".format(
                 rooms_unicos[0][0], rooms_unicos[0][1]
             )
-            # Imprimir advertencia con debugging
-            output.print_md("⚠️ Elemento {} solo encontró 1 ambiente: {} (ID Room: {})".format(
-                elemento.Id, nombre_combinado, rooms_unicos[0][2].IntegerValue
-            ))
 
         return asignar_ambiente_puerta_ventana(elemento, nombre_combinado, nombre_combinado, failed_list)
 

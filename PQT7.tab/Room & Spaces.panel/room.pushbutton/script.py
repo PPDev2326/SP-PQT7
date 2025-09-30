@@ -39,6 +39,192 @@ def get_room_number(room):
     return ""
 
 
+def extraer_numero_para_ordenar(numero_str):
+    """
+    Extrae el primer número encontrado en la cadena para ordenar.
+    Ejemplo: "A-101" -> 101, "205B" -> 205
+    """
+    import re
+    match = re.search(r'\d+', numero_str)
+    if match:
+        try:
+            return int(match.group())
+        except:
+            pass
+    return float('inf')  # Si no hay número, va al final
+
+
+def procesar_puerta_ventana(elemento, habitaciones, failed_list):
+    try:
+        rooms_unicos = []
+        ids_usados = set()
+        
+        # PASO 1: Intentar FromRoom y ToRoom
+        from_room = None
+        to_room = None
+        try:
+            from_room = elemento.FromRoom[doc.Phase] if hasattr(elemento, "FromRoom") else None
+            to_room = elemento.ToRoom[doc.Phase] if hasattr(elemento, "ToRoom") else None
+        except:
+            pass
+
+        # Agregar FromRoom si es válido
+        if from_room:
+            nombre = get_room_name(from_room)
+            numero = get_room_number(from_room)
+            if nombre and numero:
+                rooms_unicos.append((numero, nombre.upper(), from_room.Id))
+                ids_usados.add(from_room.Id.IntegerValue)
+
+        # Agregar ToRoom si es válido y diferente
+        if to_room and to_room.Id.IntegerValue not in ids_usados:
+            nombre = get_room_name(to_room)
+            numero = get_room_number(to_room)
+            if nombre and numero:
+                nombre_upper = nombre.upper()
+                # Solo agregar si el NOMBRE es diferente
+                if not any(nom == nombre_upper for _, nom, _ in rooms_unicos):
+                    rooms_unicos.append((numero, nombre_upper, to_room.Id))
+                    ids_usados.add(to_room.Id.IntegerValue)
+
+        # PASO 2: Si tenemos menos de 2 ambientes, buscar por proximidad
+        if len(rooms_unicos) < 2:
+            pts = puntos_representativos(elemento) or []
+            if pts:
+                # Intentar con diferentes puntos del elemento
+                for punto in pts:
+                    if not punto or len(rooms_unicos) >= 2:
+                        break
+                    
+                    dos_cercanos = obtener_dos_rooms_mas_cercanos(habitaciones, punto)
+                    
+                    for distancia, room in dos_cercanos:
+                        if len(rooms_unicos) >= 2:
+                            break
+                        
+                        # Saltar si ya usamos este room
+                        if room.Id.IntegerValue in ids_usados:
+                            continue
+                        
+                        nombre = get_room_name(room)
+                        numero = get_room_number(room)
+                        
+                        if not nombre or not numero:
+                            continue
+                        
+                        nombre_upper = nombre.upper()
+                        
+                        # Solo agregar si el NOMBRE es diferente a los ya agregados
+                        if not any(nom == nombre_upper for _, nom, _ in rooms_unicos):
+                            rooms_unicos.append((numero, nombre_upper, room.Id))
+                            ids_usados.add(room.Id.IntegerValue)
+
+        # Verificar que tengamos al menos un ambiente
+        if not rooms_unicos:
+            return False
+
+        # PASO 3: Ordenar por número y construir cadena
+        rooms_unicos.sort(key=lambda x: extraer_numero_para_ordenar(x[0]))
+
+        if len(rooms_unicos) >= 2:
+            nombre_combinado = "{} : {}, {} : {}".format(
+                rooms_unicos[0][0], rooms_unicos[0][1],
+                rooms_unicos[1][0], rooms_unicos[1][1]
+            )
+        else:
+            nombre_combinado = "{} : {}".format(
+                rooms_unicos[0][0], rooms_unicos[0][1]
+            )
+
+        return asignar_ambiente_puerta_ventana(elemento, nombre_combinado, nombre_combinado, failed_list)
+
+    except Exception as e:
+        output.print_md("**Error procesando puerta/ventana {}: {}**".format(elemento.Id, str(e)))
+        return False
+
+
+def procesar_puerta_ventana(elemento, habitaciones, failed_list):
+    try:
+        # Intentamos usar FromRoom y ToRoom
+        from_room = None
+        to_room = None
+        try:
+            from_room = elemento.FromRoom[doc.Phase] if hasattr(elemento, "FromRoom") else None
+            to_room = elemento.ToRoom[doc.Phase] if hasattr(elemento, "ToRoom") else None
+        except:
+            pass
+
+        rooms_encontrados = []
+        if from_room: 
+            rooms_encontrados.append(from_room)
+        if to_room and to_room.Id != (from_room.Id if from_room else None): 
+            rooms_encontrados.append(to_room)
+
+        # Si no se encontraron, usar proximidad
+        if not rooms_encontrados:
+            pts = puntos_representativos(elemento) or []
+            if pts:
+                punto = next((p for p in pts if p), None)
+                if punto:
+                    dos_cercanos = obtener_dos_rooms_mas_cercanos(habitaciones, punto)
+                    rooms_encontrados = [r for d, r in dos_cercanos]
+
+        if not rooms_encontrados:
+            return False
+
+        # Procesar rooms encontrados
+        rooms_con_datos = []
+        for room in rooms_encontrados:
+            nombre = get_room_name(room)
+            numero = get_room_number(room)
+            if nombre and numero:
+                rooms_con_datos.append((numero, nombre.upper()))
+
+        if not rooms_con_datos:
+            return False
+
+        # ✅ Quitar duplicados por nombre
+        vistos = {}
+        for num, nom in rooms_con_datos:
+            if nom not in vistos:
+                vistos[nom] = num
+        rooms_unicos = [(num, nom) for nom, num in vistos.items()]
+
+        # ⚡ Si quedó solo un Room, intentar buscar otro distinto por proximidad
+        if len(rooms_unicos) == 1:
+            pts = puntos_representativos(elemento) or []
+            if pts:
+                punto = next((p for p in pts if p), None)
+                if punto:
+                    dos_cercanos = obtener_dos_rooms_mas_cercanos(habitaciones, punto)
+                    for d, r in dos_cercanos:
+                        nombre = get_room_name(r)
+                        numero = get_room_number(r)
+                        if nombre and numero and nombre.upper() != rooms_unicos[0][1]:
+                            rooms_unicos.append((numero, nombre.upper()))
+                            break
+
+        # Ordenar por número
+        rooms_unicos.sort(key=lambda x: extraer_numero_para_ordenar(x[0]))
+
+        # Construir cadena
+        if len(rooms_unicos) >= 2:
+            nombre_combinado = "{} : {}, {} : {}".format(
+                rooms_unicos[0][0], rooms_unicos[0][1],
+                rooms_unicos[1][0], rooms_unicos[1][1]
+            )
+        else:
+            nombre_combinado = "{} : {}".format(
+                rooms_unicos[0][0], rooms_unicos[0][1]
+            )
+
+        return asignar_ambiente_puerta_ventana(elemento, nombre_combinado, nombre_combinado, failed_list)
+
+    except Exception as e:
+        output.print_md("**Error procesando puerta/ventana {}: {}**".format(elemento.Id, str(e)))
+        return False
+
+
 def verificar_parametros_vacios(elemento):
     """
     Verifica si los parámetros S&P_AMBIENTE y COBie.Component.Space están vacíos.
@@ -60,7 +246,6 @@ def verificar_parametros_vacios(elemento):
         if valor and valor.strip():
             cobie_vacio = False
     
-    # Solo procesamos si AMBOS están vacíos
     return ambiente_vacio and cobie_vacio
 
 
@@ -81,26 +266,58 @@ def verificar_cobie_activo(elemento):
 def asignar_ambiente(elemento, nombre_ambiente, numero_ambiente, failed_list):
     """
     Asigna valores a los parámetros 'S&P_AMBIENTE' y 'COBie.Component.Space'.
-    - S&P_AMBIENTE: solo el nombre
-    - COBie.Component.Space: formato "numero : nombre"
+    - S&P_AMBIENTE: solo el nombre en MAYÚSCULAS
+    - COBie.Component.Space: formato "numero : NOMBRE" en MAYÚSCULAS
     Retorna True si se asignó correctamente al menos uno, False si ambos fallan.
     """
     exito = False
     
     try:
-        # Asignar a S&P_AMBIENTE (solo nombre)
+        # Asignar a S&P_AMBIENTE (solo nombre en MAYÚSCULAS)
         prm_ambiente = elemento.LookupParameter(PARAM_NAME)
         if prm_ambiente and prm_ambiente.StorageType == StorageType.String:
-            prm_ambiente.Set(nombre_ambiente.capitalize())
+            prm_ambiente.Set(nombre_ambiente.upper())
             exito = True
         
-        # Asignar a COBie.Component.Space (numero : nombre)
+        # Asignar a COBie.Component.Space (numero : NOMBRE en MAYÚSCULAS)
         prm_cobie = elemento.LookupParameter(PARAM_COBIE)
         if prm_cobie and prm_cobie.StorageType == StorageType.String:
             if numero_ambiente:
-                valor_cobie = "{} : {}".format(numero_ambiente, nombre_ambiente.capitalize())
+                valor_cobie = "{} : {}".format(numero_ambiente, nombre_ambiente.upper())
             else:
-                valor_cobie = nombre_ambiente.capitalize()
+                valor_cobie = nombre_ambiente.upper()
+            prm_cobie.Set(valor_cobie)
+            exito = True
+        
+        if not exito:
+            failed_list.append(elemento.Id)
+            
+    except Exception as e:
+        output.print_md("**Error en elemento {}: {}**".format(elemento.Id, str(e)))
+        failed_list.append(elemento.Id)
+        return False
+    
+    return exito
+
+
+def asignar_ambiente_puerta_ventana(elemento, nombre_combinado, valor_cobie, failed_list):
+    """
+    Asignación especial para puertas y ventanas con formato:
+    - S&P_AMBIENTE: "23 : SALA, 26 : COMEDOR"
+    - COBie.Component.Space: "23 : SALA, 26 : COMEDOR"
+    """
+    exito = False
+    
+    try:
+        # Asignar a S&P_AMBIENTE
+        prm_ambiente = elemento.LookupParameter(PARAM_NAME)
+        if prm_ambiente and prm_ambiente.StorageType == StorageType.String:
+            prm_ambiente.Set(nombre_combinado)
+            exito = True
+        
+        # Asignar a COBie.Component.Space (mismo valor)
+        prm_cobie = elemento.LookupParameter(PARAM_COBIE)
+        if prm_cobie and prm_cobie.StorageType == StorageType.String:
             prm_cobie.Set(valor_cobie)
             exito = True
         
@@ -198,64 +415,114 @@ for elem in collector:
 
 categorias_vista_ordenadas = sorted(categorias_vista)
 
-# Crear opciones combinadas
-opciones = []
-opciones.append("--- SOLO VISTA ACTIVA ({}) ---".format(vista_activa.Name))
-opciones.extend(categorias_vista_ordenadas)
-opciones.append("--- TODAS LAS CATEGORÍAS DEL PROYECTO ---")
-opciones.extend(todas_categorias)
+# Preguntar si solo quiere categorías de la vista activa
+usar_solo_vista = forms.alert(
+    "¿Deseas trabajar SOLO con las categorías de la vista activa '{}'?\n\n"
+    "SI: Solo categorías visibles en esta vista\n"
+    "NO: Todas las categorías del proyecto".format(vista_activa.Name),
+    title="Filtrar por Vista Activa",
+    yes=True,
+    no=True
+)
+
+# Determinar qué categorías mostrar
+if usar_solo_vista:
+    opciones_categorias = categorias_vista_ordenadas
+    titulo_seleccion = "Selecciona categorías de la vista '{}'".format(vista_activa.Name)
+else:
+    opciones_categorias = todas_categorias
+    titulo_seleccion = "Selecciona categorías del proyecto"
+
+if not opciones_categorias:
+    forms.alert("No hay categorías disponibles.", exitscript=True)
 
 # 2) Selección de categorías
 seleccion = forms.SelectFromList.show(
-    opciones, 
+    opciones_categorias, 
     multiselect=True,
-    title="Selecciona categorías a procesar"
+    title=titulo_seleccion
 )
 
 if not seleccion:
     forms.alert("No se seleccionaron categorías.", exitscript=True)
 
-# Filtrar separadores y determinar categorías seleccionadas
-seleccion_final = [s for s in seleccion if not s.startswith("---")]
+sels_cats = [mapeo[n] for n in seleccion]
+output.print_md("### Categorías seleccionadas: {}".format(", ".join(seleccion)))
 
-if not seleccion_final:
-    forms.alert("No se seleccionaron categorías válidas.", exitscript=True)
+# Verificar si hay puertas o ventanas seleccionadas
+tiene_puertas = "Puertas" in seleccion or "Doors" in seleccion
+tiene_ventanas = "Ventanas" in seleccion or "Windows" in seleccion
+procesamiento_especial = tiene_puertas or tiene_ventanas
 
-sels_cats = [mapeo[n] for n in seleccion_final]
-output.print_md("### Categorías seleccionadas: {}".format(", ".join(seleccion_final)))
+if procesamiento_especial:
+    output.print_md("### ℹ️ Se aplicará procesamiento especial para puertas/ventanas (2 ambientes)")
 
-# 2) Obtener habitaciones
+# 3) Obtener habitaciones
 habs = obtener_habitaciones(doc)
 output.print_md("### Habitaciones disponibles: {}".format(len(habs)))
 
-# 3) Obtener elementos a procesar
+# 4) Obtener elementos a procesar
 elems = obtener_elementos_de_categorias(doc, sels_cats)
 output.print_md("### Elementos encontrados: {}".format(len(elems)))
 
 # Tracking
 elems_asignados = set()
-elems_ignorados_cobie = []  # Elementos sin COBie activo
-elems_ignorados_llenos = []  # Elementos con parámetros ya llenos
+elems_ignorados_cobie = []
+elems_ignorados_llenos = []
 failed_param = []
 asignados_fase1 = 0
 asignados_fase2 = 0
 asignados_fase3 = 0
+asignados_especial = 0
 
 # ==================== PROCESAMIENTO EN UNA SOLA TRANSACCIÓN ====================
 
 with revit.Transaction("Asignar Ambiente"):
     
-    # Fase 1: Elementos dentro de habitaciones
+    # Procesamiento especial para puertas y ventanas (si aplica)
+    if procesamiento_especial:
+        output.print_md("#### Procesando puertas y ventanas (2 ambientes)...")
+        for e in elems:
+            # Solo procesar si es puerta o ventana
+            try:
+                cat_name = e.Category.Name if e.Category else ""
+                es_puerta_ventana = cat_name in ["Puertas", "Doors", "Ventanas", "Windows"]
+                
+                if not es_puerta_ventana:
+                    continue
+                
+                # Verificar COBie activo
+                if not verificar_cobie_activo(e):
+                    elems_ignorados_cobie.append(e.Id)
+                    continue
+                
+                # Verificar si parámetros están vacíos
+                if not verificar_parametros_vacios(e):
+                    elems_ignorados_llenos.append(e.Id)
+                    continue
+                
+                if procesar_puerta_ventana(e, habs, failed_param):
+                    elems_asignados.add(e.Id)
+                    asignados_especial += 1
+            except:
+                continue
+    
+    # Fase 1: Elementos dentro de habitaciones (excluir ya procesados)
     output.print_md("#### Procesando Fase 1: Elementos dentro de habitaciones...")
     for e in elems:
+        if e.Id in elems_asignados:
+            continue
+            
         # Verificar COBie activo
         if not verificar_cobie_activo(e):
-            elems_ignorados_cobie.append(e.Id)
+            if e.Id not in elems_ignorados_cobie:
+                elems_ignorados_cobie.append(e.Id)
             continue
         
         # Verificar si parámetros están vacíos
         if not verificar_parametros_vacios(e):
-            elems_ignorados_llenos.append(e.Id)
+            if e.Id not in elems_ignorados_llenos:
+                elems_ignorados_llenos.append(e.Id)
             continue
         
         if procesar_elemento_fase1(e, habs, failed_param):
@@ -284,11 +551,13 @@ with revit.Transaction("Asignar Ambiente"):
 
 # ==================== RESULTADOS ====================
 
-total_asignados = asignados_fase1 + asignados_fase2 + asignados_fase3
+total_asignados = asignados_fase1 + asignados_fase2 + asignados_fase3 + asignados_especial
 total_ignorados = len(elems_ignorados_cobie) + len(elems_ignorados_llenos)
 
 output.print_md("---")
 output.print_md("### 📊 Resumen de Resultados")
+if asignados_especial > 0:
+    output.print_md("- **Puertas/Ventanas** (2 ambientes): {}".format(asignados_especial))
 output.print_md("- **Fase 1** (dentro de habitación): {}".format(asignados_fase1))
 output.print_md("- **Fase 2** (por proximidad): {}".format(asignados_fase2))
 output.print_md("- **Fase 3** (como '{}'): {}".format(FALLBACK_VALUE, asignados_fase3))

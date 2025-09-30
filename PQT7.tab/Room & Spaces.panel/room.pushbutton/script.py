@@ -619,7 +619,10 @@ if asignados_fase3 > 0:
     # Mostrar con links seleccionables (máximo 50 para no saturar)
     muestra = elementos_activo_ids[:50]
     for elem_id in muestra:
-        output.print_element(elem_id)
+        try:
+            output.linkify(elem_id)
+        except:
+            output.print_md("- ID {}".format(elem_id.IntegerValue))
     
     if len(elementos_activo_ids) > 50:
         output.print_md("*Mostrando 50 de {} elementos*".format(len(elementos_activo_ids)))

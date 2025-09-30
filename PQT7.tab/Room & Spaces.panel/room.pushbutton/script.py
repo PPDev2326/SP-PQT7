@@ -57,21 +57,17 @@ def extraer_numero_para_ordenar(numero_str):
 def obtener_dos_rooms_mas_cercanos(habitaciones, punto):
     """
     Obtiene las 2 habitaciones más cercanas a un punto.
-    Mejora: calcula centroide por boundingbox si no existe Location.Point.
+    Retorna una lista de tuplas (distancia, room) ordenadas por distancia.
     """
     distancias = []
     
     for room in habitaciones:
         try:
-            loc = getattr(room, "Location", None)
-            if loc and getattr(loc, "Point", None):
-                room_point = loc.Point
-            else:
-                bbox = room.get_BoundingBox(None)
-                if not bbox:
-                    continue
-                room_point = (bbox.Min + bbox.Max) * 0.5
-
+            location = room.Location
+            if not location:
+                continue
+            
+            room_point = location.Point
             dx = room_point.X - punto.X
             dy = room_point.Y - punto.Y
             dz = room_point.Z - punto.Z
@@ -81,9 +77,9 @@ def obtener_dos_rooms_mas_cercanos(habitaciones, punto):
         except:
             continue
     
+    # Ordenar por distancia y tomar los 2 primeros
     distancias.sort(key=lambda x: x[0])
     return distancias[:2]
-
 
 
 def procesar_puerta_ventana(elemento, habitaciones, failed_list):
@@ -133,8 +129,8 @@ def procesar_puerta_ventana(elemento, habitaciones, failed_list):
                 vistos[nom] = num
         rooms_unicos = [(num, nom) for nom, num in vistos.items()]
 
-        # ⚡ Si quedó solo un Room y es PASILLO → forzar búsqueda de otro distinto
-        if len(rooms_unicos) == 1 and "PASILLO" in rooms_unicos[0][1]:
+        # ⚡ Si quedó solo un Room, intentar buscar otro distinto por proximidad
+        if len(rooms_unicos) == 1:
             pts = puntos_representativos(elemento) or []
             if pts:
                 punto = next((p for p in pts if p), None)
@@ -143,10 +139,10 @@ def procesar_puerta_ventana(elemento, habitaciones, failed_list):
                     for d, r in dos_cercanos:
                         nombre = get_room_name(r)
                         numero = get_room_number(r)
-                        if nombre and numero and nombre.upper() != "PASILLO":
+                        if nombre and numero and nombre.upper() != rooms_unicos[0][1]:
                             rooms_unicos.append((numero, nombre.upper()))
                             break
-        
+
         # Ordenar por número
         rooms_unicos.sort(key=lambda x: extraer_numero_para_ordenar(x[0]))
 

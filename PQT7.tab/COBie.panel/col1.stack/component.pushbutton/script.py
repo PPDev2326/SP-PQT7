@@ -12,6 +12,7 @@ from Extensions._RevitAPI import *
 from DBRepositories.SchoolRepository import ColegiosRepository
 from DBRepositories.SpecialtiesRepository import SpecialtiesRepository
 from Helper._Excel import Excel
+from Helper._Dictionary import find_mapped_number
 from datetime import datetime, timedelta
 
 nombre_archivo = obtener_nombre_archivo()
@@ -232,7 +233,7 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
             # ==== Obtenemos el ambiente en el component space
             space_component = getParameter(elem, "COBie.Component.Space")
             space = get_param_value(space_component)
-            tag_number = divide_string(space, 0, ":")
+            tag_number = find_mapped_number(space)
             
             code_elem = get_param_value(getParameter(elem, "S&P_CODIGO DE ELEMENTO"))
             if code_elem not in (None, "", "n/a"):

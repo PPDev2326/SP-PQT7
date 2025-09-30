@@ -222,7 +222,7 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
             el_type_object = doc.GetElement(element_type_object_id)
             param_object_type = GetParameterAPI(el_type_object, BuiltInParameter.SYMBOL_NAME_PARAM)
             name_type = get_param_value(param_object_type)
-            pr_number = get_param_value(getParameter(elem, "Classification.Uniclass.Pr.Number"))
+            pr_number = get_param_value(getParameter(el_type_object, "Classification.Uniclass.Pr.Number"))
 
             family_name = el_type_object.FamilyName if isinstance(el_type_object, ElementType) else "Sin familia"
 

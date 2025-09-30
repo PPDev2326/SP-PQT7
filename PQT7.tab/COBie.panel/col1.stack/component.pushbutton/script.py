@@ -1,367 +1,480 @@
 # -*- coding: utf-8 -*-
-__title__ = "COBie\nComponent"
+__title__ = "Assign room"
 
-# ==== Obtenemos la librerias necesarias ====
-from Autodesk.Revit.DB import Transaction, ElementId, StorageType, FamilyInstance, ElementType, BuiltInParameter
-from Autodesk.Revit.UI import TaskDialog
-from Autodesk.Revit.Exceptions import OperationCanceledException
-from Autodesk.Revit.UI.Selection import ObjectType
-from pyrevit import script, revit, forms
-from Extensions._Modulo import obtener_nombre_archivo, validar_nombre
-from Extensions._RevitAPI import *
-from DBRepositories.SchoolRepository import ColegiosRepository
-from DBRepositories.SpecialtiesRepository import SpecialtiesRepository
-from Helper._Excel import Excel
-from datetime import datetime, timedelta
+from pyrevit import revit, script, forms
+from Autodesk.Revit.DB import (
+    StorageType, RevitLinkInstance, FilteredElementCollector, BuiltInParameter
+)
+from Extensions._utils import (
+    obtener_mapeo_nombres_categorias,
+    obtener_elementos_de_categorias,
+    obtener_habitaciones_y_espacios,
+    obtener_habitaciones_de_vinculos_seleccionados,
+    get_room_name,
+    puntos_representativos,
+    is_point_inside,
+    obtener_room_mas_cercano
+)
 
-nombre_archivo = obtener_nombre_archivo()
-if not validar_nombre(nombre_archivo):
-    script.exit()
-
-# ==== Metodo para validar valor de parametro vacío o n/a ====
-def get_first_valid_parameter(elem, names):
-    """Devuelve el primer valor válido encontrado en la lista de parámetros."""
-    invalid_values = {None, ""}
-    for name in names:
-        param = getParameter(elem, name)
-        if param:
-            value = get_param_value(param)
-            if isinstance(value, str):
-                if value.strip().lower() in {"", "n/a"}:
-                    continue
-            if value not in invalid_values:
-                return value
-    return None
-
-
-# ==== Metodo para dividir una cadena ====
-def divide_string(text, idx, character_divider=None, compare=None, value_default=None):
-    """
-    Divide un string en partes usando un separador y devuelve el elemento en la posición idx.
-    Si el texto completo coincide con 'compare', devuelve 'value_default'.
-    """
-    if not text:
-        return ""
-    
-    # Verificar coincidencia antes de dividir
-    if compare and text.strip().lower() == compare.lower():
-        return value_default
-    
-    parts = text.split(character_divider) if character_divider else text.split()
-    if idx < 0 or idx >= len(parts):
-        return ""
-    
-    return parts[idx]
-
-columns_headers = [
-    "COBie.Component.InstallationDate",
-    "CODIGO"
-]
-
-def find_data_by_code(data_list, codigo_elemento):
-    """
-    Busca los datos del Excel que coincidan con el código del elemento.
-    
-    :param data_list: Lista de diccionarios con los datos del Excel.
-    :type data_list: list
-    :param codigo_elemento: Código del elemento de Revit.
-    :type codigo_elemento: str
-    :return: Diccionario con los datos encontrados o None si no encuentra.
-    :rtype: dict or None
-    """
-    if not data_list:
-        return None
-    
-    for row_data in data_list:
-        codigo_excel = row_data.get("CODIGO")
-        if codigo_excel and str(codigo_excel).strip() == str(codigo_elemento).strip():
-            return row_data
-    
-    return None
-
-# ==== Obtener el documento activo ====
 doc = revit.doc
-ui_doc = revit.uidoc
+output = script.get_output()
 
-# ==== Seleccionar elementos y obtenemos tipo Reference de los elementos ====
-try:
-    references = ui_doc.Selection.PickObjects(ObjectType.Element)
-except OperationCanceledException:
-    forms.alert("Operación cancelada: no se seleccionaron elementos para procesar COBie.Component",
-                title="Cancelación")
-    script.exit()
-
-# ==== Datos fijos ====
-CREATED_ON = "2025-08-04T11:59:30"
+# Constantes
+TOLERANCIA_PIES = 0.410105  # 12.5 cm en pies
+PARAM_NAME = "S&P_AMBIENTE"
+PARAM_COBIE = "COBie.Component.Space"
+PARAM_COBIE_BOOL = "COBie"
+FALLBACK_VALUE = "Activo"
 
 
-# ==== Instanciamos el colegio correspondiente del modelo activo ====
-school_repo_object = ColegiosRepository()
-school_object = school_repo_object.codigo_colegio(doc)
-school = None
-created_by = None
-warranty_start_date = None
+def get_room_number(room):
+    """Obtiene el número de la habitación."""
+    try:
+        param = room.get_Parameter(BuiltInParameter.ROOM_NUMBER)
+        if param and param.HasValue:
+            numero = param.AsString()
+            return numero if numero else ""
+    except:
+        pass
+    return ""
 
-# ==== Verificamos si el colegio existe
-if school_object:
-    school = school_object.name
-    created_by = school_object.created_by
-    warranty_start_date = school_object.warranty_start_date.component_warranty
 
-# ==== Instanciamos la especialidad correspondiente al modelo ====
-specialty_repo = SpecialtiesRepository()
-specialty_object = specialty_repo.get_specialty_by_document(doc)
-specialty = None
+def extraer_numero_para_ordenar(numero_str):
+    """
+    Extrae el primer número encontrado en la cadena para ordenar.
+    Ejemplo: "A-101" -> 101, "205B" -> 205
+    """
+    import re
+    match = re.search(r'\d+', numero_str)
+    if match:
+        try:
+            return int(match.group())
+        except:
+            pass
+    return float('inf')  # Si no hay número, va al final
 
-if specialty_object:
-    specialty = specialty_object.name
 
-# ==== Obtenemos la hoja excel de acuerdo a la especialidad ====
-data_list = None
-
-print("\n" + "="*70)
-print("PROCESAMIENTO COBie COMPONENT - {}".format(specialty))
-print("="*70)
-
-if specialty == "ARQUITECTURA":
-    excel_instance = Excel()
-    excel_rows = excel_instance.read_excel('ESTANDAR COBIE  -AR')
-    headers = excel_instance.get_headers(excel_rows, 2)
-    headers_required = excel_instance.headers_required(headers, columns_headers)
-    data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
+def obtener_dos_rooms_mas_cercanos(habitaciones, punto):
+    """
+    Obtiene las 2 habitaciones más cercanas a un punto.
+    Retorna una lista de tuplas (distancia, room) ordenadas por distancia.
+    """
+    distancias = []
     
-    # ==== Obtenemos tambien los nombres para el TagNumber
-    excel_rows_space = excel_instance.read_excel('ESTANDAR COBie SPACE ')
-    headers_space = excel_instance.get_headers(excel_rows, 2)
-    headers_required_space = excel_instance.headers_required(headers, columns_headers)
-    data_list_space = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
-
-elif specialty == "INSTALACIONES SANITARIAS":
-    excel_instance = Excel()
-    excel_rows = excel_instance.read_excel('ESTANDAR COBIE  - PL')
-    headers = excel_instance.get_headers(excel_rows, 2)
-    headers_required = excel_instance.headers_required(headers, columns_headers)
-    data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
+    for room in habitaciones:
+        try:
+            location = room.Location
+            if not location:
+                continue
+            
+            room_point = location.Point
+            dx = room_point.X - punto.X
+            dy = room_point.Y - punto.Y
+            dz = room_point.Z - punto.Z
+            distancia = (dx*dx + dy*dy + dz*dz) ** 0.5
+            
+            distancias.append((distancia, room))
+        except:
+            continue
     
-    # ==== Obtenemos tambien los nombres para el TagNumber
-    excel_rows_space = excel_instance.read_excel('ESTANDAR COBie SPACE ')
-    headers_space = excel_instance.get_headers(excel_rows, 2)
-    headers_required_space = excel_instance.headers_required(headers, columns_headers)
-    data_list_space = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
+    # Ordenar por distancia y tomar los 2 primeros
+    distancias.sort(key=lambda x: x[0])
+    return distancias[:2]
 
-elif specialty == "INSTALACIONES ELECTRICAS":
-    excel_instance = Excel()
-    excel_rows = excel_instance.read_excel('ESTANDAR COBIE  -EE')
-    headers = excel_instance.get_headers(excel_rows, 2)
-    headers_required = excel_instance.headers_required(headers, columns_headers)
-    data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
+
+def procesar_puerta_ventana(elemento, habitaciones, failed_list):
+    """
+    Procesamiento especial para puertas y ventanas:
+    Asigna los nombres de los 2 ambientes más cercanos ordenados por número de room.
+    Formato: "23 : SALA, 26 : COMEDOR"
+    """
+    pts = puntos_representativos(elemento) or []
+    if not pts:
+        return False
     
-    # ==== Obtenemos tambien los nombres para el TagNumber
-    excel_rows_space = excel_instance.read_excel('ESTANDAR COBie SPACE ')
-    headers_space = excel_instance.get_headers(excel_rows, 2)
-    headers_required_space = excel_instance.headers_required(headers, columns_headers)
-    data_list_space = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
-
-elif specialty == "COMUNICACIONES":
-    excel_instance = Excel()
-    excel_rows = excel_instance.read_excel('ESTANDAR COBIE  - IICC')
-    headers = excel_instance.get_headers(excel_rows, 2)
-    headers_required = excel_instance.headers_required(headers, columns_headers)
-    data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
+    # Usar el primer punto representativo
+    punto = next((p for p in pts if p), None)
+    if not punto:
+        return False
     
-    # ==== Obtenemos tambien los nombres para el TagNumber
-    excel_rows_space = excel_instance.read_excel('ESTANDAR COBie SPACE ')
-    headers_space = excel_instance.get_headers(excel_rows, 2)
-    headers_required_space = excel_instance.headers_required(headers, columns_headers)
-    data_list_space = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
+    try:
+        dos_cercanos = obtener_dos_rooms_mas_cercanos(habitaciones, punto)
+        
+        if not dos_cercanos:
+            return False
+        
+        # Obtener nombres y números
+        rooms_con_datos = []
+        for distancia, room in dos_cercanos:
+            nombre = get_room_name(room)
+            numero = get_room_number(room)
+            rooms_con_datos.append((numero, nombre, room))
+        
+        # Ordenar por número (de menor a mayor)
+        rooms_con_datos.sort(key=lambda x: extraer_numero_para_ordenar(x[0]))
+        
+        # Construir el formato especial para puertas/ventanas
+        if len(rooms_con_datos) == 2:
+            # Formato: "23 : SALA, 26 : COMEDOR"
+            nombre_combinado = "{} : {}, {} : {}".format(
+                rooms_con_datos[0][0],  # número 1
+                rooms_con_datos[0][1].upper(),  # nombre 1 en mayúsculas
+                rooms_con_datos[1][0],  # número 2
+                rooms_con_datos[1][1].upper()   # nombre 2 en mayúsculas
+            )
+            # Para COBie usamos el mismo formato
+            valor_cobie = nombre_combinado
+        elif len(rooms_con_datos) == 1:
+            # Si solo hay un ambiente, formato normal
+            nombre_combinado = rooms_con_datos[0][1].upper()
+            valor_cobie = "{} : {}".format(
+                rooms_con_datos[0][0],
+                rooms_con_datos[0][1].upper()
+            )
+        else:
+            return False
+        
+        # Asignación especial para puertas/ventanas
+        return asignar_ambiente_puerta_ventana(elemento, nombre_combinado, valor_cobie, failed_list)
+        
+    except Exception as e:
+        output.print_md("**Error procesando puerta/ventana {}: {}**".format(elemento.Id, str(e)))
+        return False
 
-elif specialty == "INSTALACIONES MECANICAS":
-    excel_instance = Excel()
-    excel_rows = excel_instance.read_excel('ESTANDAR COBIE  - ME')
-    headers = excel_instance.get_headers(excel_rows, 2)
-    headers_required = excel_instance.headers_required(headers, columns_headers)
-    data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
+
+def verificar_parametros_vacios(elemento):
+    """
+    Verifica si los parámetros S&P_AMBIENTE y COBie.Component.Space están vacíos.
+    Retorna True si ambos están vacíos, False si al menos uno tiene valor.
+    """
+    prm_ambiente = elemento.LookupParameter(PARAM_NAME)
+    prm_cobie = elemento.LookupParameter(PARAM_COBIE)
     
-    # ==== Obtenemos tambien los nombres para el TagNumber
-    excel_rows_space = excel_instance.read_excel('ESTANDAR COBie SPACE ')
-    headers_space = excel_instance.get_headers(excel_rows, 2)
-    headers_required_space = excel_instance.headers_required(headers, columns_headers)
-    data_list_space = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
+    ambiente_vacio = True
+    cobie_vacio = True
+    
+    if prm_ambiente and prm_ambiente.StorageType == StorageType.String:
+        valor = prm_ambiente.AsString()
+        if valor and valor.strip():
+            ambiente_vacio = False
+    
+    if prm_cobie and prm_cobie.StorageType == StorageType.String:
+        valor = prm_cobie.AsString()
+        if valor and valor.strip():
+            cobie_vacio = False
+    
+    return ambiente_vacio and cobie_vacio
 
+
+def verificar_cobie_activo(elemento):
+    """
+    Verifica si el parámetro COBie (bool) está activado (True/Si/1).
+    Retorna True si está activado, False en caso contrario.
+    """
+    try:
+        prm_cobie_bool = elemento.LookupParameter(PARAM_COBIE_BOOL)
+        if prm_cobie_bool and prm_cobie_bool.StorageType == StorageType.Integer:
+            return prm_cobie_bool.AsInteger() == 1
+    except:
+        pass
+    return False
+
+
+def asignar_ambiente(elemento, nombre_ambiente, numero_ambiente, failed_list):
+    """
+    Asigna valores a los parámetros 'S&P_AMBIENTE' y 'COBie.Component.Space'.
+    - S&P_AMBIENTE: solo el nombre
+    - COBie.Component.Space: formato "numero : nombre"
+    Retorna True si se asignó correctamente al menos uno, False si ambos fallan.
+    """
+    exito = False
+    
+    try:
+        # Asignar a S&P_AMBIENTE (solo nombre)
+        prm_ambiente = elemento.LookupParameter(PARAM_NAME)
+        if prm_ambiente and prm_ambiente.StorageType == StorageType.String:
+            prm_ambiente.Set(nombre_ambiente)
+            exito = True
+        
+        # Asignar a COBie.Component.Space (numero : nombre)
+        prm_cobie = elemento.LookupParameter(PARAM_COBIE)
+        if prm_cobie and prm_cobie.StorageType == StorageType.String:
+            if numero_ambiente:
+                valor_cobie = "{} : {}".format(numero_ambiente, nombre_ambiente)
+            else:
+                valor_cobie = nombre_ambiente
+            prm_cobie.Set(valor_cobie)
+            exito = True
+        
+        if not exito:
+            failed_list.append(elemento.Id)
+            
+    except Exception as e:
+        output.print_md("**Error en elemento {}: {}**".format(elemento.Id, str(e)))
+        failed_list.append(elemento.Id)
+        return False
+    
+    return exito
+
+
+def procesar_elemento_fase1(elemento, habitaciones, failed_list):
+    """Fase 1: Busca si algún punto del elemento está dentro de una habitación."""
+    pts = puntos_representativos(elemento) or []
+    for p in pts:
+        if not p:
+            continue
+        try:
+            room_hit = next((r for r in habitaciones if is_point_inside(r, p)), None)
+            if room_hit:
+                nombre = get_room_name(room_hit)
+                numero = get_room_number(room_hit)
+                return asignar_ambiente(elemento, nombre.capitalize(), numero, failed_list)
+        except Exception:
+            continue
+    return False
+
+
+def procesar_elemento_fase2(elemento, habitaciones, failed_list):
+    """Fase 2: Busca la habitación más cercana dentro de la tolerancia."""
+    pts = puntos_representativos(elemento) or []
+    for p in pts:
+        if not p:
+            continue
+        try:
+            room_cercana = obtener_room_mas_cercano(habitaciones, p, tolerancia=TOLERANCIA_PIES)
+            if room_cercana:
+                nombre = get_room_name(room_cercana)
+                numero = get_room_number(room_cercana)
+                return asignar_ambiente(elemento, nombre.capitalize(), numero, failed_list)
+        except Exception:
+            continue
+    return False
+
+
+def obtener_habitaciones(documento):
+    """Obtiene habitaciones del documento actual o de vínculos seleccionados."""
+    habs = obtener_habitaciones_y_espacios(documento)
+    if habs:
+        return habs
+    
+    # Si no hay habitaciones, buscar en vínculos
+    links = FilteredElementCollector(documento).OfClass(RevitLinkInstance).ToElements()
+    nom_links = sorted({l.Name for l in links})
+    
+    if not nom_links:
+        forms.alert("No hay habitaciones ni vínculos disponibles.", exitscript=True)
+    
+    sel_links = forms.SelectFromList.show(
+        nom_links, 
+        multiselect=True,
+        title="Selecciona vínculos con habitaciones"
+    )
+    
+    if not sel_links:
+        forms.alert("No se seleccionaron vínculos.", exitscript=True)
+    
+    habs = obtener_habitaciones_de_vinculos_seleccionados(documento, sel_links)
+    
+    if not habs:
+        forms.alert("No se encontraron habitaciones en los vínculos.", exitscript=True)
+    
+    return habs
+
+
+# ==================== INICIO DEL SCRIPT ====================
+
+# 1) Obtener categorías y preparar opciones
+mapeo = obtener_mapeo_nombres_categorias(doc)
+todas_categorias = sorted(mapeo.keys())
+
+# Obtener categorías de la vista activa
+vista_activa = doc.ActiveView
+categorias_vista = set()
+collector = FilteredElementCollector(doc, vista_activa.Id).WhereElementIsNotElementType()
+for elem in collector:
+    try:
+        if elem.Category and elem.Category.Name in mapeo:
+            categorias_vista.add(elem.Category.Name)
+    except:
+        continue
+
+categorias_vista_ordenadas = sorted(categorias_vista)
+
+# Preguntar si solo quiere categorías de la vista activa
+usar_solo_vista = forms.alert(
+    "¿Deseas trabajar SOLO con las categorías de la vista activa '{}'?\n\n"
+    "SI: Solo categorías visibles en esta vista\n"
+    "NO: Todas las categorías del proyecto".format(vista_activa.Name),
+    title="Filtrar por Vista Activa",
+    yes=True,
+    no=True
+)
+
+# Determinar qué categorías mostrar
+if usar_solo_vista:
+    opciones_categorias = categorias_vista_ordenadas
+    titulo_seleccion = "Selecciona categorías de la vista '{}'".format(vista_activa.Name)
 else:
-    forms.alert("Especialidad '{}' no reconocida para cargar datos Excel.".format(specialty), exitscript=True)
+    opciones_categorias = todas_categorias
+    titulo_seleccion = "Selecciona categorías del proyecto"
 
-if not data_list:
-    forms.alert("No se pudieron cargar los datos del Excel.", exitscript=True)
+if not opciones_categorias:
+    forms.alert("No hay categorías disponibles.", exitscript=True)
 
-print("[OK] Excel cargado: {} registros disponibles".format(len(data_list)))
+# 2) Selección de categorías
+seleccion = forms.SelectFromList.show(
+    opciones_categorias, 
+    multiselect=True,
+    title=titulo_seleccion
+)
 
-# ==== Creamos nuevo diccionario que contendra el codigo y sus valores ====
-dict_codigos = {}
-for row in data_list:
-    code = row["CODIGO"]
-    dict_codigos[code] = row
+if not seleccion:
+    forms.alert("No se seleccionaron categorías.", exitscript=True)
 
-# ==== Contadores para estadísticas ====
-count = 0
-fechas_actualizadas = 0
-serial_actualizados = 0
-elementos_sin_codigo = 0
-errores = []
+sels_cats = [mapeo[n] for n in seleccion]
+output.print_md("### Categorías seleccionadas: {}".format(", ".join(seleccion)))
 
-print("\nIniciando procesamiento de elementos...")
-print("-"*70)
+# Verificar si hay puertas o ventanas seleccionadas
+tiene_puertas = "Puertas" in seleccion or "Doors" in seleccion
+tiene_ventanas = "Ventanas" in seleccion or "Windows" in seleccion
+procesamiento_especial = tiene_puertas or tiene_ventanas
 
-with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
+if procesamiento_especial:
+    output.print_md("### ℹ️ Se aplicará procesamiento especial para puertas/ventanas (2 ambientes)")
 
-    for reference in references:
-        element_object = doc.GetElement(reference)
-        elementos_a_procesar = [element_object]
+# 3) Obtener habitaciones
+habs = obtener_habitaciones(doc)
+output.print_md("### Habitaciones disponibles: {}".format(len(habs)))
 
-        if isinstance(element_object, FamilyInstance):
+# 4) Obtener elementos a procesar
+elems = obtener_elementos_de_categorias(doc, sels_cats)
+output.print_md("### Elementos encontrados: {}".format(len(elems)))
+
+# Tracking
+elems_asignados = set()
+elems_ignorados_cobie = []
+elems_ignorados_llenos = []
+failed_param = []
+asignados_fase1 = 0
+asignados_fase2 = 0
+asignados_fase3 = 0
+asignados_especial = 0
+
+# ==================== PROCESAMIENTO EN UNA SOLA TRANSACCIÓN ====================
+
+with revit.Transaction("Asignar Ambiente"):
+    
+    # Procesamiento especial para puertas y ventanas (si aplica)
+    if procesamiento_especial:
+        output.print_md("#### Procesando puertas y ventanas (2 ambientes)...")
+        for e in elems:
+            # Solo procesar si es puerta o ventana
             try:
-                sub_ids = element_object.GetSubComponentIds()
-                if sub_ids:
-                    for sid in sub_ids:
-                        sub_elem = doc.GetElement(sid)
-                        if sub_elem:
-                            elementos_a_procesar.append(sub_elem)
-            except:
-                pass
-
-        for elem in elementos_a_procesar:
-            uid_elem = elem.UniqueId
-            
-            cobie = elem.LookupParameter("COBie")
-            if not (cobie and not cobie.IsReadOnly and cobie.StorageType == StorageType.Integer and cobie.AsInteger() == 1):
-                continue
-            
-            level_param_value = get_param_value(getParameter(elem, "S&P_NIVEL DE ELEMENTO"))
-            level = divide_string(level_param_value, 1)
-            
-            elem_category_object = elem.Category
-            name_category = elem_category_object.Name if elem_category_object else "Sin categoria"
-            
-            id_elem = elem.Id.IntegerValue
-            
-            element_type_object_id = elem.GetTypeId()
-            if element_type_object_id == ElementId.InvalidElementId:
-                errores.append("Elemento ID {} sin tipo asociado".format(id_elem))
-                continue
-            
-            el_type_object = doc.GetElement(element_type_object_id)
-            param_object_type = GetParameterAPI(el_type_object, BuiltInParameter.SYMBOL_NAME_PARAM)
-            name_type = get_param_value(param_object_type)
-            pr_number = get_param_value(getParameter(el_type_object, "Classification.Uniclass.Pr.Number"))
-
-            family_name = el_type_object.FamilyName if isinstance(el_type_object, ElementType) else "Sin familia"
-
-            zonification_value = get_param_value(getParameter(elem, "S&P_ZONIFICACION"))
-            mbr_value = divide_string(zonification_value, 1, compare="sitio", value_default="000")
-            
-            ambiente_object = getParameter(elem, "S&P_AMBIENTE")
-            ambiente = get_param_value(ambiente_object)
-            
-            code_elem = get_param_value(getParameter(elem, "S&P_CODIGO DE ELEMENTO"))
-            if code_elem not in (None, "", "n/a"):
-                code_elem
-            else:
-                elementos_sin_codigo += 1
-            
-            if specialty in ["INSTALACIONES SANITARIAS", "COMUNICACIONES"]:
-                description = get_first_valid_parameter(
-                    elem,
-                    ["S&P_DESCRIPCION PARTIDA N°2", "S&P_DESCRIPCION PARTIDA N°1"]
-                )
-            else:
-                description = get_first_valid_parameter(
-                    elem,
-                    ["S&P_DESCRIPCION PARTIDA N°1"]
-                )
-            
-            # ==== CONVERSION DE FECHA DEL EXCEL ====
-            if code_elem in dict_codigos:
-                data_row = dict_codigos[code_elem]
+                cat_name = e.Category.Name if e.Category else ""
+                es_puerta_ventana = cat_name in ["Puertas", "Doors", "Ventanas", "Windows"]
                 
-                if "COBie.Component.InstallationDate" in data_row:
-                    fecha_excel = data_row["COBie.Component.InstallationDate"]
-                    
-                    if fecha_excel and fecha_excel not in ("", "n/a", None):
-                        param_installation_date = getParameter(elem, "COBie.Component.InstallationDate")
-                        
-                        if param_installation_date and not param_installation_date.IsReadOnly:
-                            try:
-                                if isinstance(fecha_excel, (int, float)):
-                                    fecha_base = datetime(1899, 12, 30)
-                                    fecha_convertida = fecha_base + timedelta(days=float(fecha_excel))
-                                    fecha_formateada = fecha_convertida.strftime("%Y-%m-%d")
-                                    
-                                elif hasattr(fecha_excel, 'strftime'):
-                                    fecha_formateada = fecha_excel.strftime("%Y-%m-%d")
-                                    
-                                elif isinstance(fecha_excel, str):
-                                    fecha_formateada = fecha_excel
-                                    
-                                else:
-                                    fecha_formateada = str(fecha_excel)
-                                
-                                SetParameter(param_installation_date, fecha_formateada)
-                                fechas_actualizadas += 1
-                                
-                            except Exception as e:
-                                errores.append("Elemento {}: Error en fecha - {}".format(id_elem, str(e)))
-
-            # ==== Verificar si SerialNumber está vacío antes de asignar ====
-            param_serial = elem.LookupParameter("COBie.Component.SerialNumber")
-            serial_value = get_param_value(param_serial) if param_serial else None
+                if not es_puerta_ventana:
+                    continue
+                
+                # Verificar COBie activo
+                if not verificar_cobie_activo(e):
+                    elems_ignorados_cobie.append(e.Id)
+                    continue
+                
+                # Verificar si parámetros están vacíos
+                if not verificar_parametros_vacios(e):
+                    elems_ignorados_llenos.append(e.Id)
+                    continue
+                
+                if procesar_puerta_ventana(e, habs, failed_param):
+                    elems_asignados.add(e.Id)
+                    asignados_especial += 1
+            except:
+                continue
+    
+    # Fase 1: Elementos dentro de habitaciones (excluir ya procesados)
+    output.print_md("#### Procesando Fase 1: Elementos dentro de habitaciones...")
+    for e in elems:
+        if e.Id in elems_asignados:
+            continue
             
-            # Solo asignar si está vacío o es None
-            if not serial_value or serial_value.strip() in ("", "n/a"):
-                serial_number_value = "{} {}".format(code_elem, id_elem)
-                serial_actualizados += 1
-            else:
-                serial_number_value = serial_value  # Mantener el valor existente
+        # Verificar COBie activo
+        if not verificar_cobie_activo(e):
+            if e.Id not in elems_ignorados_cobie:
+                elems_ignorados_cobie.append(e.Id)
+            continue
+        
+        # Verificar si parámetros están vacíos
+        if not verificar_parametros_vacios(e):
+            if e.Id not in elems_ignorados_llenos:
+                elems_ignorados_llenos.append(e.Id)
+            continue
+        
+        if procesar_elemento_fase1(e, habs, failed_param):
+            elems_asignados.add(e.Id)
+            asignados_fase1 += 1
+    
+    # Fase 2: Proximidad
+    output.print_md("#### Procesando Fase 2: Elementos por proximidad...")
+    for e in elems:
+        if e.Id in elems_asignados or e.Id in elems_ignorados_cobie or e.Id in elems_ignorados_llenos:
+            continue
+        
+        if procesar_elemento_fase2(e, habs, failed_param):
+            elems_asignados.add(e.Id)
+            asignados_fase2 += 1
+    
+    # Fase 3: Resto como "Activo"
+    output.print_md("#### Procesando Fase 3: Elementos restantes como '{}'...".format(FALLBACK_VALUE))
+    for e in elems:
+        if e.Id in elems_asignados or e.Id in elems_ignorados_cobie or e.Id in elems_ignorados_llenos:
+            continue
+        
+        if asignar_ambiente(e, FALLBACK_VALUE, "", failed_param):
+            elems_asignados.add(e.Id)
+            asignados_fase3 += 1
 
-            parametros = {
-                "COBie.Component.Name": "{} : {} : {} : {}".format(name_category, family_name, name_type, id_elem),
-                "COBie.CreatedOn": CREATED_ON,
-                "COBie.Component.Space": ambiente,
-                "COBie.Component.Description": description,
-                "COBie.Component.SerialNumber": serial_number_value,
-                "COBie.Component.WarrantyStartDate": warranty_start_date,
-                "COBie.Component.TagNumber": "",
-                "COBie.Component.BarCode": "{}{}".format(mbr_value, id_elem),
-                "COBie.Component.AssetIdentifier": "{}-ZZ-{}-{}-{}".format(mbr_value, level, pr_number,mbr_value+str(id_elem) )
-            }
+# ==================== RESULTADOS ====================
 
-            for param_name, value in parametros.items():
-                param = elem.LookupParameter(param_name)
-                if param:
-                    SetParameter(param, value)
-            count += 1
+total_asignados = asignados_fase1 + asignados_fase2 + asignados_fase3 + asignados_especial
+total_ignorados = len(elems_ignorados_cobie) + len(elems_ignorados_llenos)
 
-# ==== RESUMEN DE PROCESAMIENTO ====
-print("\n" + "="*70)
-print("RESUMEN DE PROCESAMIENTO")
-print("="*70)
-print("Elementos procesados:        {}".format(count))
-print("Fechas actualizadas:         {}".format(fechas_actualizadas))
-print("SerialNumbers actualizados:  {}".format(serial_actualizados))
-if elementos_sin_codigo > 0:
-    print("Elementos sin codigo:        {} (ADVERTENCIA)".format(elementos_sin_codigo))
-if errores:
-    print("\nERRORES ENCONTRADOS ({})".format(len(errores)))
-    print("-"*70)
-    for error in errores[:10]:  # Mostrar máximo 10 errores
-        print("  - {}".format(error))
-    if len(errores) > 10:
-        print("  ... y {} errores más".format(len(errores) - 10))
-else:
-    print("Errores:                     0")
-print("="*70 + "\n")
+output.print_md("---")
+output.print_md("### 📊 Resumen de Resultados")
+if asignados_especial > 0:
+    output.print_md("- **Puertas/Ventanas** (2 ambientes): {}".format(asignados_especial))
+output.print_md("- **Fase 1** (dentro de habitación): {}".format(asignados_fase1))
+output.print_md("- **Fase 2** (por proximidad): {}".format(asignados_fase2))
+output.print_md("- **Fase 3** (como '{}'): {}".format(FALLBACK_VALUE, asignados_fase3))
+output.print_md("- **Total asignados**: {}".format(total_asignados))
+output.print_md("- **Ignorados** (COBie inactivo): {}".format(len(elems_ignorados_cobie)))
+output.print_md("- **Ignorados** (parámetros ya llenos): {}".format(len(elems_ignorados_llenos)))
+output.print_md("- **Sin asignar**: {}".format(len(failed_param)))
 
-TaskDialog.Show("COBie Component", 
-    "Procesamiento completado\n\n" +
-    "Elementos procesados: {}\n".format(count) +
-    "Fechas actualizadas: {}\n".format(fechas_actualizadas) +
-    "SerialNumbers actualizados: {}".format(serial_actualizados))
+if elems_ignorados_cobie:
+    sample = elems_ignorados_cobie[:10]
+    lines = ["- Id {}".format(i) for i in sample]
+    extra = " (mostrando 10 de {})".format(len(elems_ignorados_cobie)) if len(elems_ignorados_cobie) > 10 else ""
+    output.print_md("#### ℹ️ Ignorados por COBie inactivo{}:\n{}".format(extra, "\n".join(lines)))
+
+if elems_ignorados_llenos:
+    sample = elems_ignorados_llenos[:10]
+    lines = ["- Id {}".format(i) for i in sample]
+    extra = " (mostrando 10 de {})".format(len(elems_ignorados_llenos)) if len(elems_ignorados_llenos) > 10 else ""
+    output.print_md("#### ℹ️ Ignorados por parámetros ya llenos{}:\n{}".format(extra, "\n".join(lines)))
+
+if failed_param:
+    sample = failed_param[:15]
+    lines = ["- Id {}".format(i) for i in sample]
+    extra = " (mostrando 15 de {})".format(len(failed_param)) if len(failed_param) > 15 else ""
+    output.print_md("#### ⚠️ Sin asignar (parámetros '{}' o '{}' faltantes o inválidos){}:\n{}".format(
+        PARAM_NAME, PARAM_COBIE, extra, "\n".join(lines)
+    ))
+
+forms.alert(
+    "Proceso terminado:\n\n"
+    "✅ {} elementos asignados\n"
+    "⏭️ {} elementos ignorados\n"
+    "❌ {} sin asignar (sin parámetros válidos)".format(total_asignados, total_ignorados, len(failed_param)),
+    title="Asignación Completada"
+)

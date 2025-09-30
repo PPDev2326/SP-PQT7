@@ -3,7 +3,7 @@ __title__ = "Assign room"
 
 from pyrevit import revit, script, forms
 from Autodesk.Revit.DB import (
-    StorageType, RevitLinkInstance, FilteredElementCollector, BuiltInParameter
+    StorageType, RevitLinkInstance, FilteredElementCollector, BuiltInParameter, ElementId
 )
 from Extensions._utils import (
     obtener_mapeo_nombres_categorias,
@@ -622,7 +622,7 @@ if asignados_fase3 > 0:
         try:
             output.linkify(elem_id)
         except:
-            output.print_md("- ID {}".format(elem_id.IntegerValue))
+            output.print_md("- ID {}".format(ElementId(elem_id.IntegerValue)))
     
     if len(elementos_activo_ids) > 50:
         output.print_md("*Mostrando 50 de {} elementos*".format(len(elementos_activo_ids)))

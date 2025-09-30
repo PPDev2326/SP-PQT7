@@ -12,6 +12,7 @@ from Extensions._RevitAPI import *
 from DBRepositories.SchoolRepository import ColegiosRepository
 from DBRepositories.SpecialtiesRepository import SpecialtiesRepository
 from Helper._Excel import Excel
+from datetime import datetime, timedelta
 
 nombre_archivo = obtener_nombre_archivo()
 if not validar_nombre(nombre_archivo):
@@ -163,6 +164,16 @@ else:
 
 if not data_list:
     forms.alert("No se pudieron cargar los datos del Excel.", exitscript=True)
+
+# ==== DEBUG: Verificar formato de datos del Excel ====
+if data_list:
+    print("\n=== VERIFICACION DE DATOS DEL EXCEL ===")
+    print("Primera fila de ejemplo:")
+    primera_fila = data_list[0]
+    for key, value in primera_fila.items():
+        print("  {}: {} (tipo: {})".format(key, value, type(value).__name__))
+    print("=====================================\n")
+
 # ==== Termino de la lectura de Excel ====
 
 # ==== Creamos nuevo diccionario que contendra el codigo y sus valores ====
@@ -250,12 +261,61 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
                     ["S&P_DESCRIPCION PARTIDA N°1"]
                 )
             
+            # ==== CONVERSION DE FECHA DEL EXCEL ====
             if code_elem in dict_codigos:
                 data_row = dict_codigos[code_elem]
                 
                 if "COBie.Component.InstallationDate" in data_row:
-                    param_installation_date = getParameter(elem, "COBie.Component.InstallationDate")
-                    param_new_installation = SetParameter(param_installation_date, data_row["COBie.Component.InstallationDate"])
+                    # Línea 1: Obtenemos el valor del Excel
+                    fecha_excel = data_row["COBie.Component.InstallationDate"]
+                    
+                    # Línea 2: Verificamos que no sea None o vacío
+                    if fecha_excel and fecha_excel not in ("", "n/a", None):
+                        # Línea 3: Obtenemos el parámetro de Revit
+                        param_installation_date = getParameter(elem, "COBie.Component.InstallationDate")
+                        
+                        # Línea 4: Verificamos que el parámetro existe y no es de solo lectura
+                        if param_installation_date and not param_installation_date.IsReadOnly:
+                            try:
+                                # Línea 5: Verificamos si es un número (serial de Excel)
+                                if isinstance(fecha_excel, (int, float)):
+                                    # Línea 6: Excel cuenta días desde 30 de diciembre de 1899
+                                    fecha_base = datetime(1899, 12, 30)
+                                    
+                                    # Línea 7: Sumamos los días del serial para obtener la fecha real
+                                    fecha_convertida = fecha_base + timedelta(days=float(fecha_excel))
+                                    
+                                    # Línea 8: Formateamos la fecha al formato ISO que usa COBie
+                                    fecha_formateada = fecha_convertida.strftime("%Y-%m-%dT00:00:00")
+                                    
+                                # Línea 9: Si ya viene como datetime de Python
+                                elif hasattr(fecha_excel, 'strftime'):
+                                    fecha_formateada = fecha_excel.strftime("%Y-%m-%dT00:00:00")
+                                    
+                                # Línea 10: Si viene como string, lo dejamos tal cual
+                                elif isinstance(fecha_excel, str):
+                                    fecha_formateada = fecha_excel
+                                    
+                                # Línea 11: Para cualquier otro tipo, convertimos a string
+                                else:
+                                    fecha_formateada = str(fecha_excel)
+                                
+                                # Línea 12: Asignamos el valor convertido al parámetro
+                                SetParameter(param_installation_date, fecha_formateada)
+                                
+                                # Línea 13: Imprimimos para debug (opcional - puedes comentar después)
+                                print("Elemento {}: Fecha convertida {} -> {}".format(
+                                    id_elem, fecha_excel, fecha_formateada
+                                ))
+                                
+                            except Exception as e:
+                                # Línea 14: Si hay error, lo mostramos en consola
+                                print("ERROR convirtiendo fecha para elemento {}: {}".format(
+                                    id_elem, str(e)
+                                ))
+                                print("  Valor recibido: {} (tipo: {})".format(
+                                    fecha_excel, type(fecha_excel).__name__
+                                ))
 
             parametros = {
                 "COBie.Component.Name": "{} : {} : {} : {}".format(name_category, family_name, name_type, id_elem),
@@ -264,7 +324,7 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
                 "COBie.Component.Space": ambiente,
                 "COBie.Component.Description": description,
                 "COBie.Component.SerialNumber": "{} {}".format(code_elem, id_elem),
-                # "COBie.Component.InstallationDate": "",
+                # "COBie.Component.InstallationDate": "",  # Este se maneja arriba con la conversión
                 "COBie.Component.WarrantyStartDate": warranty_start_date,
                 "COBie.Component.TagNumber": "",
                 "COBie.Component.BarCode": "{}{}".format(mbr_value, id_elem),

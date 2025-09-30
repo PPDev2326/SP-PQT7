@@ -86,6 +86,7 @@ def procesar_puerta_ventana(elemento, habitaciones, failed_list):
     """
     Procesamiento especial para puertas y ventanas:
     Asigna los nombres de los 2 ambientes más cercanos ordenados por número de room.
+    Formato: "23 : SALA, 26 : COMEDOR"
     """
     pts = puntos_representativos(elemento) or []
     if not pts:
@@ -107,26 +108,38 @@ def procesar_puerta_ventana(elemento, habitaciones, failed_list):
         for distancia, room in dos_cercanos:
             nombre = get_room_name(room)
             numero = get_room_number(room)
-            rooms_con_datos.append((numero, nombre, room))
+            # Solo agregar si tiene nombre y número válidos
+            if nombre and numero:
+                rooms_con_datos.append((numero, nombre.upper(), room))
+        
+        if not rooms_con_datos:
+            return False
         
         # Ordenar por número (de menor a mayor)
         rooms_con_datos.sort(key=lambda x: extraer_numero_para_ordenar(x[0]))
         
-        # Construir el nombre combinado
-        if len(rooms_con_datos) == 2:
-            nombre_combinado = "{}, {}".format(
-                rooms_con_datos[0][1].capitalize(),
-                rooms_con_datos[1][1].capitalize()
+        # Construir el formato especial para puertas/ventanas
+        if len(rooms_con_datos) >= 2:
+            # Formato: "23 : SALA, 26 : COMEDOR"
+            nombre_combinado = "{} : {}, {} : {}".format(
+                rooms_con_datos[0][0],  # número 1
+                rooms_con_datos[0][1],  # nombre 1 (ya está en mayúsculas)
+                rooms_con_datos[1][0],  # número 2
+                rooms_con_datos[1][1]   # nombre 2 (ya está en mayúsculas)
             )
-            # Para COBie, usar el número del primer ambiente
-            numero_cobie = rooms_con_datos[0][0]
+            valor_cobie = nombre_combinado
         elif len(rooms_con_datos) == 1:
-            nombre_combinado = rooms_con_datos[0][1].capitalize()
-            numero_cobie = rooms_con_datos[0][0]
+            # Si solo hay un ambiente, formato normal
+            nombre_combinado = "{} : {}".format(
+                rooms_con_datos[0][0],
+                rooms_con_datos[0][1]
+            )
+            valor_cobie = nombre_combinado
         else:
             return False
         
-        return asignar_ambiente(elemento, nombre_combinado, numero_cobie, failed_list)
+        # Asignación especial para puertas/ventanas
+        return asignar_ambiente_puerta_ventana(elemento, nombre_combinado, valor_cobie, failed_list)
         
     except Exception as e:
         output.print_md("**Error procesando puerta/ventana {}: {}**".format(elemento.Id, str(e)))
@@ -174,26 +187,58 @@ def verificar_cobie_activo(elemento):
 def asignar_ambiente(elemento, nombre_ambiente, numero_ambiente, failed_list):
     """
     Asigna valores a los parámetros 'S&P_AMBIENTE' y 'COBie.Component.Space'.
-    - S&P_AMBIENTE: solo el nombre
-    - COBie.Component.Space: formato "numero : nombre"
+    - S&P_AMBIENTE: solo el nombre en MAYÚSCULAS
+    - COBie.Component.Space: formato "numero : NOMBRE" en MAYÚSCULAS
     Retorna True si se asignó correctamente al menos uno, False si ambos fallan.
     """
     exito = False
     
     try:
-        # Asignar a S&P_AMBIENTE (solo nombre)
+        # Asignar a S&P_AMBIENTE (solo nombre en MAYÚSCULAS)
         prm_ambiente = elemento.LookupParameter(PARAM_NAME)
         if prm_ambiente and prm_ambiente.StorageType == StorageType.String:
-            prm_ambiente.Set(nombre_ambiente)
+            prm_ambiente.Set(nombre_ambiente.upper())
             exito = True
         
-        # Asignar a COBie.Component.Space (numero : nombre)
+        # Asignar a COBie.Component.Space (numero : NOMBRE en MAYÚSCULAS)
         prm_cobie = elemento.LookupParameter(PARAM_COBIE)
         if prm_cobie and prm_cobie.StorageType == StorageType.String:
             if numero_ambiente:
-                valor_cobie = "{} : {}".format(numero_ambiente, nombre_ambiente)
+                valor_cobie = "{} : {}".format(numero_ambiente, nombre_ambiente.upper())
             else:
-                valor_cobie = nombre_ambiente
+                valor_cobie = nombre_ambiente.upper()
+            prm_cobie.Set(valor_cobie)
+            exito = True
+        
+        if not exito:
+            failed_list.append(elemento.Id)
+            
+    except Exception as e:
+        output.print_md("**Error en elemento {}: {}**".format(elemento.Id, str(e)))
+        failed_list.append(elemento.Id)
+        return False
+    
+    return exito
+
+
+def asignar_ambiente_puerta_ventana(elemento, nombre_combinado, valor_cobie, failed_list):
+    """
+    Asignación especial para puertas y ventanas con formato:
+    - S&P_AMBIENTE: "23 : SALA, 26 : COMEDOR"
+    - COBie.Component.Space: "23 : SALA, 26 : COMEDOR"
+    """
+    exito = False
+    
+    try:
+        # Asignar a S&P_AMBIENTE
+        prm_ambiente = elemento.LookupParameter(PARAM_NAME)
+        if prm_ambiente and prm_ambiente.StorageType == StorageType.String:
+            prm_ambiente.Set(nombre_combinado)
+            exito = True
+        
+        # Asignar a COBie.Component.Space (mismo valor)
+        prm_cobie = elemento.LookupParameter(PARAM_COBIE)
+        if prm_cobie and prm_cobie.StorageType == StorageType.String:
             prm_cobie.Set(valor_cobie)
             exito = True
         
@@ -219,7 +264,7 @@ def procesar_elemento_fase1(elemento, habitaciones, failed_list):
             if room_hit:
                 nombre = get_room_name(room_hit)
                 numero = get_room_number(room_hit)
-                return asignar_ambiente(elemento, nombre.capitalize(), numero, failed_list)
+                return asignar_ambiente(elemento, nombre, numero, failed_list)
         except Exception:
             continue
     return False
@@ -236,7 +281,7 @@ def procesar_elemento_fase2(elemento, habitaciones, failed_list):
             if room_cercana:
                 nombre = get_room_name(room_cercana)
                 numero = get_room_number(room_cercana)
-                return asignar_ambiente(elemento, nombre.capitalize(), numero, failed_list)
+                return asignar_ambiente(elemento, nombre, numero, failed_list)
         except Exception:
             continue
     return False

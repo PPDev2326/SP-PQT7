@@ -625,7 +625,7 @@ if asignados_fase3 > 0:
             output.print_md("- ID {}".format(elem_id.IntegerValue))
     
     if len(elementos_activo_ids) > 50:
-        output.print_md("*Mostrando 50 de {} elementos*".format(len(elementos_activo_ids)))
+        output.print_md("*Mostrando 50 de {} elementos*".format(len(ElementId(elementos_activo_ids))))
 
 if failed_param:
     output.print_md("---")

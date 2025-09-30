@@ -19,6 +19,11 @@ def SetParameter(parameter, new_value):
     if parameter and not parameter.IsReadOnly:
         try:
             st = parameter.StorageType
+            print(">>> Intentando setear:",
+                  parameter.Definition.Name,
+                  "| StorageType:", st,
+                  "| Valor:", new_value,
+                  "| Tipo:", type(new_value))
 
             if st == StorageType.String:
                 parameter.Set(str(new_value))

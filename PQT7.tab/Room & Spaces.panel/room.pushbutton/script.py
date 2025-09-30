@@ -5,7 +5,6 @@ from pyrevit import revit, script, forms
 from Autodesk.Revit.DB import (
     StorageType, RevitLinkInstance, FilteredElementCollector, BuiltInParameter
 )
-from Extensions._Modulo import obtener_nombre_archivo, validar_nombre
 from Extensions._utils import (
     obtener_mapeo_nombres_categorias,
     obtener_elementos_de_categorias,
@@ -19,10 +18,6 @@ from Extensions._utils import (
 
 doc = revit.doc
 output = script.get_output()
-
-nombre_archivo = obtener_nombre_archivo()
-if not validar_nombre(nombre_archivo):
-    script.exit()
 
 # Constantes
 TOLERANCIA_PIES = 0.410105  # 12.5 cm en pies
@@ -146,9 +141,42 @@ def obtener_habitaciones(documento):
 
 # ==================== INICIO DEL SCRIPT ====================
 
-# 1) Selección de categorías
+# 1) Preguntar si usar categorías de la vista activa
+opciones_fuente = ["Todas las categorías del proyecto", "Solo categorías de la vista activa"]
+fuente_seleccionada = forms.CommandSwitchWindow.show(
+    opciones_fuente,
+    message="¿Qué categorías deseas procesar?"
+)
+
+if not fuente_seleccionada:
+    script.exit()
+
+# 2) Obtener categorías según la opción seleccionada
 mapeo = obtener_mapeo_nombres_categorias(doc)
-nombres = sorted(mapeo.keys())
+
+if fuente_seleccionada == opciones_fuente[1]:  # Vista activa
+    vista_activa = doc.ActiveView
+    categorias_vista = set()
+    
+    # Obtener elementos visibles en la vista activa
+    collector = FilteredElementCollector(doc, vista_activa.Id).WhereElementIsNotElementType()
+    for elem in collector:
+        try:
+            if elem.Category and elem.Category.Name in mapeo:
+                categorias_vista.add(elem.Category.Name)
+        except:
+            continue
+    
+    if not categorias_vista:
+        forms.alert("No se encontraron categorías válidas en la vista activa.", exitscript=True)
+    
+    nombres = sorted(categorias_vista)
+    output.print_md("**Fuente:** Categorías de la vista activa ({})".format(vista_activa.Name))
+else:
+    nombres = sorted(mapeo.keys())
+    output.print_md("**Fuente:** Todas las categorías del proyecto")
+
+# 3) Selección de categorías
 seleccion = forms.SelectFromList.show(
     nombres, 
     multiselect=True,

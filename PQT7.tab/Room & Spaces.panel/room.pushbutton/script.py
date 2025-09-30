@@ -83,12 +83,8 @@ def obtener_dos_rooms_mas_cercanos(habitaciones, punto):
 
 
 def procesar_puerta_ventana(elemento, habitaciones, failed_list):
-    """
-    Procesamiento especial para puertas y ventanas:
-    Intenta usar FromRoom/ToRoom; si no están disponibles, usa proximidad.
-    """
     try:
-        # Primero intentamos usar FromRoom y ToRoom
+        # Intentamos usar FromRoom y ToRoom
         from_room = None
         to_room = None
         try:
@@ -103,7 +99,7 @@ def procesar_puerta_ventana(elemento, habitaciones, failed_list):
         if to_room and to_room.Id != (from_room.Id if from_room else None): 
             rooms_encontrados.append(to_room)
 
-        # Si no se encontraron, usar proximidad como antes
+        # Si no se encontraron, usar proximidad
         if not rooms_encontrados:
             pts = puntos_representativos(elemento) or []
             if pts:
@@ -130,13 +126,26 @@ def procesar_puerta_ventana(elemento, habitaciones, failed_list):
         vistos = {}
         for num, nom in rooms_con_datos:
             if nom not in vistos:
-                vistos[nom] = num  # guardamos el primer número asociado
-                
+                vistos[nom] = num
         rooms_unicos = [(num, nom) for nom, num in vistos.items()]
-        
+
+        # ⚡ Si quedó solo un Room, intentar buscar otro distinto por proximidad
+        if len(rooms_unicos) == 1:
+            pts = puntos_representativos(elemento) or []
+            if pts:
+                punto = next((p for p in pts if p), None)
+                if punto:
+                    dos_cercanos = obtener_dos_rooms_mas_cercanos(habitaciones, punto)
+                    for d, r in dos_cercanos:
+                        nombre = get_room_name(r)
+                        numero = get_room_number(r)
+                        if nombre and numero and nombre.upper() != rooms_unicos[0][1]:
+                            rooms_unicos.append((numero, nombre.upper()))
+                            break
+
         # Ordenar por número
         rooms_unicos.sort(key=lambda x: extraer_numero_para_ordenar(x[0]))
-        
+
         # Construir cadena
         if len(rooms_unicos) >= 2:
             nombre_combinado = "{} : {}, {} : {}".format(
@@ -147,13 +156,12 @@ def procesar_puerta_ventana(elemento, habitaciones, failed_list):
             nombre_combinado = "{} : {}".format(
                 rooms_unicos[0][0], rooms_unicos[0][1]
             )
-            
+
         return asignar_ambiente_puerta_ventana(elemento, nombre_combinado, nombre_combinado, failed_list)
 
     except Exception as e:
         output.print_md("**Error procesando puerta/ventana {}: {}**".format(elemento.Id, str(e)))
         return False
-
 
 
 def verificar_parametros_vacios(elemento):

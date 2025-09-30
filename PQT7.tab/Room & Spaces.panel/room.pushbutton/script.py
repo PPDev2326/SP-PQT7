@@ -620,7 +620,7 @@ if asignados_fase3 > 0:
     muestra = elementos_activo[:50]
     output.print_md("")  # Línea en blanco para separación
     for elem in muestra:
-        output.print_element(elem.Id)
+        output.print_element(elem)
     
     if len(elementos_activo) > 50:
         output.print_md("")

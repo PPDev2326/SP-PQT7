@@ -32,7 +32,6 @@ def get_room_number(room):
     try:
         param = room.get_Parameter(BuiltInParameter.ROOM_NUMBER)
         if param and param.HasValue:
-            # Uso de AsString para obtener el valor del parámetro
             numero = param.AsString()
             return numero if numero else ""
     except:
@@ -92,7 +91,6 @@ def procesar_puerta_ventana(elemento, habitaciones, failed_list):
         # Obtener el nivel del elemento para filtrar habitaciones
         elemento_nivel_id = None
         try:
-            # Usar LevelId si está disponible, si no, buscar el parámetro de nivel
             if hasattr(elemento, 'LevelId'):
                 elemento_nivel_id = elemento.LevelId
             else:
@@ -106,7 +104,6 @@ def procesar_puerta_ventana(elemento, habitaciones, failed_list):
         # Filtrar habitaciones del mismo nivel si es posible
         habitaciones_filtradas = habitaciones
         if elemento_nivel_id and elemento_nivel_id.IntegerValue != -1:
-            # Comparar el ID del nivel
             habs_mismo_nivel = [h for h in habitaciones if h.LevelId.IntegerValue == elemento_nivel_id.IntegerValue]
             if habs_mismo_nivel:
                 habitaciones_filtradas = habs_mismo_nivel
@@ -114,14 +111,15 @@ def procesar_puerta_ventana(elemento, habitaciones, failed_list):
         # PASO 1: Intentar FromRoom y ToRoom
         from_room = None
         to_room = None
-        # La propiedad Phase de doc debe ser usada para el FromRoom/ToRoom
         try:
+            phase_id = doc.ActiveView.Phasing.GetPhaseParameterValue()
+            phase = doc.GetElement(phase_id)
             if hasattr(elemento, "FromRoom"):
-                from_room = elemento.FromRoom[doc.GetElement(doc.ActiveView.Phasing.GetPhaseParameterValue())]
+                from_room = elemento.FromRoom[phase]
             if hasattr(elemento, "ToRoom"):
-                to_room = elemento.ToRoom[doc.GetElement(doc.ActiveView.Phasing.GetPhaseParameterValue())]
+                to_room = elemento.ToRoom[phase]
         except:
-            # Intentar con la fase por defecto del documento si falla
+            # Fallback a doc.Phase
             try:
                 if hasattr(elemento, "FromRoom"):
                     from_room = elemento.FromRoom[doc.Phase]
@@ -132,8 +130,7 @@ def procesar_puerta_ventana(elemento, habitaciones, failed_list):
 
 
         # Agregar FromRoom si es válido y del mismo nivel
-        if from_room and from_room.Location: # Verificar si tiene geometría para evitar errores
-            # Verificar que sea del mismo nivel o si no tenemos info de nivel
+        if from_room and from_room.Location:
             if not elemento_nivel_id or from_room.LevelId.IntegerValue == elemento_nivel_id.IntegerValue:
                 nombre = get_room_name(from_room)
                 numero = get_room_number(from_room)
@@ -144,8 +141,7 @@ def procesar_puerta_ventana(elemento, habitaciones, failed_list):
                     numeros_usados.add(numero)
 
         # Agregar ToRoom si es válido, diferente y del mismo nivel
-        if to_room and to_room.Id.IntegerValue not in ids_usados and to_room.Location: # Verificar si tiene geometría
-            # Verificar que sea del mismo nivel o si no tenemos info de nivel
+        if to_room and to_room.Id.IntegerValue not in ids_usados and to_room.Location:
             if not elemento_nivel_id or to_room.LevelId.IntegerValue == elemento_nivel_id.IntegerValue:
                 nombre = get_room_name(to_room)
                 numero = get_room_number(to_room)
@@ -161,7 +157,6 @@ def procesar_puerta_ventana(elemento, habitaciones, failed_list):
         if len(rooms_unicos) < 2:
             pts = puntos_representativos(elemento) or []
             
-            # Obtener TODOS los rooms cercanos de todos los puntos (del mismo nivel)
             candidatos = []
             for punto in pts:
                 if not punto:
@@ -265,20 +260,17 @@ def verificar_cobie_activo(elemento):
 def asignar_ambiente(elemento, nombre_ambiente, numero_ambiente, failed_list):
     """
     Asigna valores a los parámetros 'S&P_AMBIENTE' y 'COBie.Component.Space'.
-    - S&P_AMBIENTE: solo el nombre en MAYÚSCULAS
-    - COBie.Component.Space: formato "numero : NOMBRE" en MAYÚSCULAS
-    Retorna True si se asignó correctamente al menos uno, False si ambos fallan.
     """
     exito = False
     
     try:
-        # Asignar a S&P_AMBIENTE (solo nombre en MAYÚSCULAS)
+        # Asignar a S&P_AMBIENTE
         prm_ambiente = elemento.LookupParameter(PARAM_NAME)
         if prm_ambiente and prm_ambiente.StorageType == StorageType.String:
             prm_ambiente.Set(nombre_ambiente.upper())
             exito = True
         
-        # Asignar a COBie.Component.Space (numero : NOMBRE en MAYÚSCULAS)
+        # Asignar a COBie.Component.Space
         prm_cobie = elemento.LookupParameter(PARAM_COBIE)
         if prm_cobie and prm_cobie.StorageType == StorageType.String:
             if numero_ambiente:
@@ -289,11 +281,11 @@ def asignar_ambiente(elemento, nombre_ambiente, numero_ambiente, failed_list):
             exito = True
         
         if not exito:
-            failed_list.append(elemento.Id)
+            if elemento.Id not in failed_list:
+                failed_list.append(elemento.Id)
             
     except Exception as e:
         output.print_md("**Error en elemento {}: {}**".format(elemento.Id, str(e)))
-        # Añadir el ElementId a la lista de fallidos
         if elemento.Id not in failed_list:
             failed_list.append(elemento.Id)
         return False
@@ -303,9 +295,7 @@ def asignar_ambiente(elemento, nombre_ambiente, numero_ambiente, failed_list):
 
 def asignar_ambiente_puerta_ventana(elemento, nombre_combinado, valor_cobie, failed_list):
     """
-    Asignación especial para puertas y ventanas con formato:
-    - S&P_AMBIENTE: "23 : SALA, 26 : COMEDOR"
-    - COBie.Component.Space: "23 : SALA, 26 : COMEDOR"
+    Asignación especial para puertas y ventanas con formato combinado.
     """
     exito = False
     
@@ -323,11 +313,11 @@ def asignar_ambiente_puerta_ventana(elemento, nombre_combinado, valor_cobie, fai
             exito = True
         
         if not exito:
-            failed_list.append(elemento.Id)
+            if elemento.Id not in failed_list:
+                failed_list.append(elemento.Id)
             
     except Exception as e:
         output.print_md("**Error en elemento {}: {}**".format(elemento.Id, str(e)))
-        # Añadir el ElementId a la lista de fallidos
         if elemento.Id not in failed_list:
             failed_list.append(elemento.Id)
         return False
@@ -342,7 +332,6 @@ def procesar_elemento_fase1(elemento, habitaciones, failed_list):
         if not p:
             continue
         try:
-            # Filtrar habitaciones por nivel antes de la búsqueda (si es posible)
             elemento_nivel_id = None
             try:
                 elemento_nivel_id = elemento.LevelId if hasattr(elemento, 'LevelId') else elemento.get_Parameter(BuiltInParameter.ELEM_LEVEL_PARAM).AsElementId()
@@ -353,7 +342,6 @@ def procesar_elemento_fase1(elemento, habitaciones, failed_list):
             if elemento_nivel_id and elemento_nivel_id.IntegerValue != -1:
                 habs_filtradas = [h for h in habitaciones if h.LevelId.IntegerValue == elemento_nivel_id.IntegerValue]
 
-            # Buscar la habitación
             room_hit = next((r for r in habs_filtradas if is_point_inside(r, p)), None)
             
             if room_hit:
@@ -372,7 +360,6 @@ def procesar_elemento_fase2(elemento, habitaciones, failed_list):
         if not p:
             continue
         try:
-            # Filtrar habitaciones por nivel antes de la búsqueda (si es posible)
             elemento_nivel_id = None
             try:
                 elemento_nivel_id = elemento.LevelId if hasattr(elemento, 'LevelId') else elemento.get_Parameter(BuiltInParameter.ELEM_LEVEL_PARAM).AsElementId()
@@ -401,7 +388,6 @@ def obtener_habitaciones(documento):
         output.print_md("### ✅ Habitaciones encontradas en el modelo actual: {}".format(len(habs)))
         return habs
     
-    # Si no hay habitaciones en el modelo actual, buscar en vínculos
     output.print_md("### ⚠️ No se encontraron habitaciones en el modelo actual")
     output.print_md("### 🔗 Buscando habitaciones en vínculos...")
     
@@ -415,7 +401,6 @@ def obtener_habitaciones(documento):
             exitscript=True
         )
     
-    # Filtrar solo vínculos cargados
     links_cargados = [l for l in links if l.GetLinkDocument() is not None]
     
     if not links_cargados:
@@ -427,23 +412,19 @@ def obtener_habitaciones(documento):
             exitscript=True
         )
     
-    # Preparar lista de vínculos con información
     nom_links_info = []
     for link in links_cargados:
         link_doc = link.GetLinkDocument()
         if link_doc:
-            # Contar habitaciones en el vínculo
             try:
-                # Se utiliza doc.Settings.Categories.get_Item con string para compatibilidad
                 rooms_cat = doc.Settings.Categories.get_Item(BuiltInParameter.OST_Rooms).Name
             except:
-                rooms_cat = "Rooms" # Fallback
+                rooms_cat = "Rooms" 
             
             link_rooms = FilteredElementCollector(link_doc).OfCategory(
                 doc.Settings.Categories.get_Item(rooms_cat)
             ).WhereElementIsNotElementType().ToElements()
             
-            # Filtro por Area > 0 para habitaciones colocadas
             num_rooms = len([r for r in link_rooms if hasattr(r, 'Area') and r.Area > 0])
             nom_links_info.append("{} ({} habitaciones)".format(link.Name, num_rooms))
     
@@ -454,7 +435,6 @@ def obtener_habitaciones(documento):
             exitscript=True
         )
     
-    # Selección de vínculos
     sel_links = forms.SelectFromList.show(
         sorted(nom_links_info), 
         multiselect=True,
@@ -465,10 +445,8 @@ def obtener_habitaciones(documento):
     if not sel_links:
         forms.alert("No se seleccionaron vínculos.", title="Cancelado", exitscript=True)
     
-    # Extraer nombres originales (sin el conteo)
     nombres_originales = [s.split(" (")[0] for s in sel_links]
     
-    # La función obtener_habitaciones_de_vinculos_seleccionados debe manejar el proceso
     habs = obtener_habitaciones_de_vinculos_seleccionados(documento, nombres_originales)
     
     if not habs:
@@ -490,12 +468,8 @@ def obtener_habitaciones(documento):
 mapeo = obtener_mapeo_nombres_categorias(doc)
 todas_categorias = sorted(mapeo.keys())
 
-# Obtener categorías de la vista activa
 vista_activa = doc.ActiveView
 categorias_vista = set()
-# Usar una sobrecarga de FilteredElementCollector que no filtre por vista, 
-# sino solo los que se *muestran* en la vista (si el método obtener_elementos_de_categorias lo requiere)
-# Para la lista inicial, se usa el filtro por vista activa
 collector = FilteredElementCollector(doc, vista_activa.Id).WhereElementIsNotElementType()
 for elem in collector:
     try:
@@ -506,7 +480,6 @@ for elem in collector:
 
 categorias_vista_ordenadas = sorted(categorias_vista)
 
-# Preguntar si solo quiere categorías de la vista activa
 usar_solo_vista = forms.alert(
     "¿Deseas trabajar SOLO con las categorías de la vista activa '{}'?\n\n"
     "SI: Solo categorías visibles en esta vista\n"
@@ -516,7 +489,6 @@ usar_solo_vista = forms.alert(
     no=True
 )
 
-# Determinar qué categorías mostrar
 if usar_solo_vista:
     opciones_categorias = categorias_vista_ordenadas
     titulo_seleccion = "Selecciona categorías de la vista '{}'".format(vista_activa.Name)
@@ -540,7 +512,6 @@ if not seleccion:
 sels_cats = [mapeo[n] for n in seleccion]
 output.print_md("### Categorías seleccionadas: {}".format(", ".join(seleccion)))
 
-# Verificar si hay puertas, ventanas o modelos genéricos seleccionados
 tiene_puertas = "Puertas" in seleccion or "Doors" in seleccion
 tiene_ventanas = "Ventanas" in seleccion or "Windows" in seleccion
 tiene_genericos = "Modelos genéricos" in seleccion or "Generic Models" in seleccion
@@ -554,22 +525,20 @@ habs = obtener_habitaciones(doc)
 output.print_md("### Habitaciones disponibles: {}".format(len(habs)))
 
 # 4) Obtener elementos a procesar
-# Se asume que obtener_elementos_de_categorias obtiene TODOS los elementos de esas categorías en el doc
 elems = obtener_elementos_de_categorias(doc, sels_cats)
 output.print_md("### Elementos encontrados: {}".format(len(elems)))
 
 # Tracking
-elems_asignados = set() # Elementos que SÍ fueron asignados (Id)
-elems_ignorados_cobie = [] # Elementos ignorados por COBie inactivo (Id)
-elems_ignorados_llenos = [] # Elementos ignorados por parámetros ya llenos (Id)
-failed_param = [] # Elementos que fallaron la asignación (sin parámetros válidos) (ElementId)
+elems_asignados = set()
+elems_ignorados_cobie = []
+elems_ignorados_llenos = []
+failed_param = []
 asignados_fase1 = 0
 asignados_fase2 = 0
 asignados_fase3 = 0
 asignados_especial = 0
 
-# Lista para guardar los elementos que se asignan a FALLBACK_VALUE
-elementos_activo = []
+elementos_activo = [] # Lista para guardar los elementos (objeto) asignados como 'Activo'
 
 # ==================== PROCESAMIENTO EN UNA SOLA TRANSACCIÓN ====================
 
@@ -579,7 +548,6 @@ with revit.Transaction("Asignar Ambiente"):
     if procesamiento_especial:
         output.print_md("#### Procesando puertas, ventanas y modelos genéricos (2 ambientes)...")
         for e in elems:
-            # Solo procesar si es puerta, ventana o modelo genérico
             try:
                 cat_name = e.Category.Name if e.Category else ""
                 es_elemento_especial = cat_name in ["Puertas", "Doors", "Ventanas", "Windows", "Modelos genéricos", "Generic Models"]
@@ -587,13 +555,11 @@ with revit.Transaction("Asignar Ambiente"):
                 if not es_elemento_especial:
                     continue
                 
-                # Verificar COBie activo
                 if not verificar_cobie_activo(e):
                     if e.Id not in elems_ignorados_cobie:
                         elems_ignorados_cobie.append(e.Id)
                     continue
                 
-                # Verificar si parámetros están vacíos
                 if not verificar_parametros_vacios(e):
                     if e.Id not in elems_ignorados_llenos:
                         elems_ignorados_llenos.append(e.Id)
@@ -611,13 +577,11 @@ with revit.Transaction("Asignar Ambiente"):
         if e.Id in elems_asignados:
             continue
             
-        # Verificar COBie activo
         if not verificar_cobie_activo(e):
             if e.Id not in elems_ignorados_cobie:
                 elems_ignorados_cobie.append(e.Id)
             continue
         
-        # Verificar si parámetros están vacíos
         if not verificar_parametros_vacios(e):
             if e.Id not in elems_ignorados_llenos:
                 elems_ignorados_llenos.append(e.Id)
@@ -646,7 +610,7 @@ with revit.Transaction("Asignar Ambiente"):
         if asignar_ambiente(e, FALLBACK_VALUE, "", failed_param):
             elems_asignados.add(e.Id)
             asignados_fase3 += 1
-            elementos_activo.append(e) # AÑADIR EL ELEMENTO A LA LISTA DE REVISIÓN
+            elementos_activo.append(e) # Guarda el elemento completo
 
 # ==================== RESULTADOS ====================
 
@@ -664,25 +628,33 @@ output.print_md("- **Total asignados**: {}".format(total_asignados))
 output.print_md("- **Ignorados** (COBie inactivo o parámetros llenos): {}".format(total_ignorados))
 output.print_md("- **Sin asignar** (sin parámetros válidos): {}".format(len(failed_param)))
 
-# Mostrar elementos asignados como "Activo" (para revisión manual)
+# ---
+## ⚠️ Elementos asignados como 'Activo' (Revisión Manual)
+
 if asignados_fase3 > 0:
     output.print_md("---")
     output.print_md("### ⚠️ Elementos asignados como '{}' (requieren revisión manual)".format(FALLBACK_VALUE))
     output.print_md("Total: {} elementos".format(asignados_fase3))
     output.print_md("Haz clic en los IDs para seleccionarlos en Revit:")
     
-    # Usar la lista 'elementos_activo' que ya fue poblada
     muestra = elementos_activo[:50]
-    output.print_md("")  # Línea en blanco para separación
+    output.print_md("") 
     for elem in muestra:
-        # Esto imprime el elemento completo, generando el link clickeable
-        output.print_element(elem) 
+        # **CORRECCIÓN DE COMPATIBILIDAD:** Usar print_element si está disponible, si no, usar output.link()
+        if hasattr(output, 'print_element'):
+            output.print_element(elem)
+        else:
+            # Fallback para versiones antiguas de PyRevit
+            output.print_md("ID {} | {}: {}".format(elem.Id.IntegerValue, elem.Category.Name, elem.Name))
+            output.link(elem.Id) 
     
     if len(elementos_activo) > 50:
         output.print_md("")
         output.print_md("*Mostrando 50 de {} elementos*".format(len(elementos_activo)))
 
-# Mostrar elementos sin parámetros válidos (failed_param)
+# ---
+## ❌ Elementos sin parámetros válidos (Fallo)
+
 if failed_param:
     output.print_md("---")
     output.print_md("### ❌ Elementos sin parámetros válidos")
@@ -690,24 +662,25 @@ if failed_param:
     
     sample_ids = failed_param[:15]
     
-    # SOLUCIÓN APLICADA AQUÍ: Se debe obtener el objeto Element a partir del ElementId antes de imprimir.
     output.print_md("")
     for elem_id in sample_ids:
         try:
-            # Obtener el objeto Element a partir del ElementId
             elem = doc.GetElement(elem_id)
             if elem:
-                # print_element aceptará el Element o el ElementId, pero el Element es más seguro
-                output.print_element(elem)
+                 # **CORRECCIÓN DE COMPATIBILIDAD:** Usar print_element si está disponible
+                if hasattr(output, 'print_element'):
+                    output.print_element(elem)
+                else:
+                    # Fallback
+                    output.print_md("ID {} | {}: {}".format(elem_id.IntegerValue, elem.Category.Name, elem.Name))
+                    output.link(elem_id)
             else:
-                # Si no se puede obtener el elemento, mostrar el ID como texto
                 output.print_md("ID no encontrado: {}".format(elem_id.IntegerValue))
         except Exception as e:
             output.print_md("Error al mostrar ID {}: {}".format(elem_id.IntegerValue, str(e)))
 
     if len(failed_param) > 15:
         output.print_md("\n*Mostrando 15 de {} elementos*".format(len(failed_param)))
-
 
 forms.alert(
     "Proceso terminado:\n\n"

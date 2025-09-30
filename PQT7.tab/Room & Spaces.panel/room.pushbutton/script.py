@@ -32,6 +32,7 @@ def get_room_number(room):
     try:
         param = room.get_Parameter(BuiltInParameter.ROOM_NUMBER)
         if param and param.HasValue:
+            # Uso de AsString para obtener el valor del parámetro
             numero = param.AsString()
             return numero if numero else ""
     except:
@@ -91,30 +92,49 @@ def procesar_puerta_ventana(elemento, habitaciones, failed_list):
         # Obtener el nivel del elemento para filtrar habitaciones
         elemento_nivel_id = None
         try:
-            elemento_nivel_id = elemento.LevelId if hasattr(elemento, 'LevelId') else None
+            # Usar LevelId si está disponible, si no, buscar el parámetro de nivel
+            if hasattr(elemento, 'LevelId'):
+                elemento_nivel_id = elemento.LevelId
+            else:
+                param_level = elemento.get_Parameter(BuiltInParameter.ELEM_LEVEL_PARAM)
+                if param_level and param_level.HasValue:
+                    elemento_nivel_id = param_level.AsElementId()
+
         except:
             pass
         
         # Filtrar habitaciones del mismo nivel si es posible
         habitaciones_filtradas = habitaciones
         if elemento_nivel_id and elemento_nivel_id.IntegerValue != -1:
-            habs_mismo_nivel = [h for h in habitaciones if h.LevelId == elemento_nivel_id]
+            # Comparar el ID del nivel
+            habs_mismo_nivel = [h for h in habitaciones if h.LevelId.IntegerValue == elemento_nivel_id.IntegerValue]
             if habs_mismo_nivel:
                 habitaciones_filtradas = habs_mismo_nivel
         
         # PASO 1: Intentar FromRoom y ToRoom
         from_room = None
         to_room = None
+        # La propiedad Phase de doc debe ser usada para el FromRoom/ToRoom
         try:
-            from_room = elemento.FromRoom[doc.Phase] if hasattr(elemento, "FromRoom") else None
-            to_room = elemento.ToRoom[doc.Phase] if hasattr(elemento, "ToRoom") else None
+            if hasattr(elemento, "FromRoom"):
+                from_room = elemento.FromRoom[doc.GetElement(doc.ActiveView.Phasing.GetPhaseParameterValue())]
+            if hasattr(elemento, "ToRoom"):
+                to_room = elemento.ToRoom[doc.GetElement(doc.ActiveView.Phasing.GetPhaseParameterValue())]
         except:
-            pass
+            # Intentar con la fase por defecto del documento si falla
+            try:
+                if hasattr(elemento, "FromRoom"):
+                    from_room = elemento.FromRoom[doc.Phase]
+                if hasattr(elemento, "ToRoom"):
+                    to_room = elemento.ToRoom[doc.Phase]
+            except:
+                pass
+
 
         # Agregar FromRoom si es válido y del mismo nivel
-        if from_room:
-            # Verificar que sea del mismo nivel
-            if not elemento_nivel_id or from_room.LevelId == elemento_nivel_id:
+        if from_room and from_room.Location: # Verificar si tiene geometría para evitar errores
+            # Verificar que sea del mismo nivel o si no tenemos info de nivel
+            if not elemento_nivel_id or from_room.LevelId.IntegerValue == elemento_nivel_id.IntegerValue:
                 nombre = get_room_name(from_room)
                 numero = get_room_number(from_room)
                 if nombre and numero:
@@ -124,9 +144,9 @@ def procesar_puerta_ventana(elemento, habitaciones, failed_list):
                     numeros_usados.add(numero)
 
         # Agregar ToRoom si es válido, diferente y del mismo nivel
-        if to_room and to_room.Id.IntegerValue not in ids_usados:
-            # Verificar que sea del mismo nivel
-            if not elemento_nivel_id or to_room.LevelId == elemento_nivel_id:
+        if to_room and to_room.Id.IntegerValue not in ids_usados and to_room.Location: # Verificar si tiene geometría
+            # Verificar que sea del mismo nivel o si no tenemos info de nivel
+            if not elemento_nivel_id or to_room.LevelId.IntegerValue == elemento_nivel_id.IntegerValue:
                 nombre = get_room_name(to_room)
                 numero = get_room_number(to_room)
                 if nombre and numero:
@@ -273,7 +293,9 @@ def asignar_ambiente(elemento, nombre_ambiente, numero_ambiente, failed_list):
             
     except Exception as e:
         output.print_md("**Error en elemento {}: {}**".format(elemento.Id, str(e)))
-        failed_list.append(elemento.Id)
+        # Añadir el ElementId a la lista de fallidos
+        if elemento.Id not in failed_list:
+            failed_list.append(elemento.Id)
         return False
     
     return exito
@@ -305,7 +327,9 @@ def asignar_ambiente_puerta_ventana(elemento, nombre_combinado, valor_cobie, fai
             
     except Exception as e:
         output.print_md("**Error en elemento {}: {}**".format(elemento.Id, str(e)))
-        failed_list.append(elemento.Id)
+        # Añadir el ElementId a la lista de fallidos
+        if elemento.Id not in failed_list:
+            failed_list.append(elemento.Id)
         return False
     
     return exito
@@ -318,7 +342,20 @@ def procesar_elemento_fase1(elemento, habitaciones, failed_list):
         if not p:
             continue
         try:
-            room_hit = next((r for r in habitaciones if is_point_inside(r, p)), None)
+            # Filtrar habitaciones por nivel antes de la búsqueda (si es posible)
+            elemento_nivel_id = None
+            try:
+                elemento_nivel_id = elemento.LevelId if hasattr(elemento, 'LevelId') else elemento.get_Parameter(BuiltInParameter.ELEM_LEVEL_PARAM).AsElementId()
+            except:
+                pass
+            
+            habs_filtradas = habitaciones
+            if elemento_nivel_id and elemento_nivel_id.IntegerValue != -1:
+                habs_filtradas = [h for h in habitaciones if h.LevelId.IntegerValue == elemento_nivel_id.IntegerValue]
+
+            # Buscar la habitación
+            room_hit = next((r for r in habs_filtradas if is_point_inside(r, p)), None)
+            
             if room_hit:
                 nombre = get_room_name(room_hit)
                 numero = get_room_number(room_hit)
@@ -335,7 +372,18 @@ def procesar_elemento_fase2(elemento, habitaciones, failed_list):
         if not p:
             continue
         try:
-            room_cercana = obtener_room_mas_cercano(habitaciones, p, tolerancia=TOLERANCIA_PIES)
+            # Filtrar habitaciones por nivel antes de la búsqueda (si es posible)
+            elemento_nivel_id = None
+            try:
+                elemento_nivel_id = elemento.LevelId if hasattr(elemento, 'LevelId') else elemento.get_Parameter(BuiltInParameter.ELEM_LEVEL_PARAM).AsElementId()
+            except:
+                pass
+            
+            habs_filtradas = habitaciones
+            if elemento_nivel_id and elemento_nivel_id.IntegerValue != -1:
+                habs_filtradas = [h for h in habitaciones if h.LevelId.IntegerValue == elemento_nivel_id.IntegerValue]
+                
+            room_cercana = obtener_room_mas_cercano(habs_filtradas, p, tolerancia=TOLERANCIA_PIES)
             if room_cercana:
                 nombre = get_room_name(room_cercana)
                 numero = get_room_number(room_cercana)
@@ -385,11 +433,18 @@ def obtener_habitaciones(documento):
         link_doc = link.GetLinkDocument()
         if link_doc:
             # Contar habitaciones en el vínculo
+            try:
+                # Se utiliza doc.Settings.Categories.get_Item con string para compatibilidad
+                rooms_cat = doc.Settings.Categories.get_Item(BuiltInParameter.OST_Rooms).Name
+            except:
+                rooms_cat = "Rooms" # Fallback
+            
             link_rooms = FilteredElementCollector(link_doc).OfCategory(
-                doc.Settings.Categories.get_Item("Rooms")
+                doc.Settings.Categories.get_Item(rooms_cat)
             ).WhereElementIsNotElementType().ToElements()
             
-            num_rooms = len([r for r in link_rooms if r.Area > 0])
+            # Filtro por Area > 0 para habitaciones colocadas
+            num_rooms = len([r for r in link_rooms if hasattr(r, 'Area') and r.Area > 0])
             nom_links_info.append("{} ({} habitaciones)".format(link.Name, num_rooms))
     
     if not nom_links_info:
@@ -413,6 +468,7 @@ def obtener_habitaciones(documento):
     # Extraer nombres originales (sin el conteo)
     nombres_originales = [s.split(" (")[0] for s in sel_links]
     
+    # La función obtener_habitaciones_de_vinculos_seleccionados debe manejar el proceso
     habs = obtener_habitaciones_de_vinculos_seleccionados(documento, nombres_originales)
     
     if not habs:
@@ -437,6 +493,9 @@ todas_categorias = sorted(mapeo.keys())
 # Obtener categorías de la vista activa
 vista_activa = doc.ActiveView
 categorias_vista = set()
+# Usar una sobrecarga de FilteredElementCollector que no filtre por vista, 
+# sino solo los que se *muestran* en la vista (si el método obtener_elementos_de_categorias lo requiere)
+# Para la lista inicial, se usa el filtro por vista activa
 collector = FilteredElementCollector(doc, vista_activa.Id).WhereElementIsNotElementType()
 for elem in collector:
     try:
@@ -495,19 +554,22 @@ habs = obtener_habitaciones(doc)
 output.print_md("### Habitaciones disponibles: {}".format(len(habs)))
 
 # 4) Obtener elementos a procesar
+# Se asume que obtener_elementos_de_categorias obtiene TODOS los elementos de esas categorías en el doc
 elems = obtener_elementos_de_categorias(doc, sels_cats)
 output.print_md("### Elementos encontrados: {}".format(len(elems)))
 
-# Tracking - AHORA GUARDAMOS ELEMENTOS COMPLETOS, NO SOLO IDs
-elems_asignados = set()  # Set de ElementIds
-elementos_fase3 = []  # Lista de ELEMENTOS completos asignados como "Activo"
-elems_ignorados_cobie = []
-elems_ignorados_llenos = []
-failed_param = []
+# Tracking
+elems_asignados = set() # Elementos que SÍ fueron asignados (Id)
+elems_ignorados_cobie = [] # Elementos ignorados por COBie inactivo (Id)
+elems_ignorados_llenos = [] # Elementos ignorados por parámetros ya llenos (Id)
+failed_param = [] # Elementos que fallaron la asignación (sin parámetros válidos) (ElementId)
 asignados_fase1 = 0
 asignados_fase2 = 0
 asignados_fase3 = 0
 asignados_especial = 0
+
+# Lista para guardar los elementos que se asignan a FALLBACK_VALUE
+elementos_activo = []
 
 # ==================== PROCESAMIENTO EN UNA SOLA TRANSACCIÓN ====================
 
@@ -527,12 +589,14 @@ with revit.Transaction("Asignar Ambiente"):
                 
                 # Verificar COBie activo
                 if not verificar_cobie_activo(e):
-                    elems_ignorados_cobie.append(e.Id)
+                    if e.Id not in elems_ignorados_cobie:
+                        elems_ignorados_cobie.append(e.Id)
                     continue
                 
                 # Verificar si parámetros están vacíos
                 if not verificar_parametros_vacios(e):
-                    elems_ignorados_llenos.append(e.Id)
+                    if e.Id not in elems_ignorados_llenos:
+                        elems_ignorados_llenos.append(e.Id)
                     continue
                 
                 if procesar_puerta_ventana(e, habs, failed_param):
@@ -573,7 +637,7 @@ with revit.Transaction("Asignar Ambiente"):
             elems_asignados.add(e.Id)
             asignados_fase2 += 1
     
-    # Fase 3: Resto como "Activo" - GUARDAR LOS ELEMENTOS COMPLETOS
+    # Fase 3: Resto como "Activo"
     output.print_md("#### Procesando Fase 3: Elementos restantes como '{}'...".format(FALLBACK_VALUE))
     for e in elems:
         if e.Id in elems_asignados or e.Id in elems_ignorados_cobie or e.Id in elems_ignorados_llenos:
@@ -581,8 +645,8 @@ with revit.Transaction("Asignar Ambiente"):
         
         if asignar_ambiente(e, FALLBACK_VALUE, "", failed_param):
             elems_asignados.add(e.Id)
-            elementos_fase3.append(e)  # GUARDAR EL ELEMENTO COMPLETO
             asignados_fase3 += 1
+            elementos_activo.append(e) # AÑADIR EL ELEMENTO A LA LISTA DE REVISIÓN
 
 # ==================== RESULTADOS ====================
 
@@ -601,30 +665,49 @@ output.print_md("- **Ignorados** (COBie inactivo o parámetros llenos): {}".form
 output.print_md("- **Sin asignar** (sin parámetros válidos): {}".format(len(failed_param)))
 
 # Mostrar elementos asignados como "Activo" (para revisión manual)
-if asignados_fase3 > 0 and elementos_fase3:
+if asignados_fase3 > 0:
     output.print_md("---")
     output.print_md("### ⚠️ Elementos asignados como '{}' (requieren revisión manual)".format(FALLBACK_VALUE))
-    output.print_md("Total: {} elementos".format(len(elementos_fase3)))
+    output.print_md("Total: {} elementos".format(asignados_fase3))
     output.print_md("Haz clic en los IDs para seleccionarlos en Revit:")
-    output.print_md("")  # Línea en blanco
     
-    # Mostrar hasta 50 elementos con links clickeables
-    muestra = elementos_fase3[:50]
+    # Usar la lista 'elementos_activo' que ya fue poblada
+    muestra = elementos_activo[:50]
+    output.print_md("")  # Línea en blanco para separación
     for elem in muestra:
-        output.print_element(elem)
+        # Esto imprime el elemento completo, generando el link clickeable
+        output.print_element(elem) 
     
-    if len(elementos_fase3) > 50:
+    if len(elementos_activo) > 50:
         output.print_md("")
-        output.print_md("*Mostrando 50 de {} elementos*".format(len(elementos_fase3)))
+        output.print_md("*Mostrando 50 de {} elementos*".format(len(elementos_activo)))
 
+# Mostrar elementos sin parámetros válidos (failed_param)
 if failed_param:
     output.print_md("---")
     output.print_md("### ❌ Elementos sin parámetros válidos")
-    sample = failed_param[:15]
-    for elem_id in sample:
-        output.print_element(elem_id)
+    output.print_md("Total: {} elementos. Haz clic en los IDs para seleccionarlos:".format(len(failed_param)))
+    
+    sample_ids = failed_param[:15]
+    
+    # SOLUCIÓN APLICADA AQUÍ: Se debe obtener el objeto Element a partir del ElementId antes de imprimir.
+    output.print_md("")
+    for elem_id in sample_ids:
+        try:
+            # Obtener el objeto Element a partir del ElementId
+            elem = doc.GetElement(elem_id)
+            if elem:
+                # print_element aceptará el Element o el ElementId, pero el Element es más seguro
+                output.print_element(elem)
+            else:
+                # Si no se puede obtener el elemento, mostrar el ID como texto
+                output.print_md("ID no encontrado: {}".format(elem_id.IntegerValue))
+        except Exception as e:
+            output.print_md("Error al mostrar ID {}: {}".format(elem_id.IntegerValue, str(e)))
+
     if len(failed_param) > 15:
-        output.print_md("*Mostrando 15 de {} elementos*".format(len(failed_param)))
+        output.print_md("\n*Mostrando 15 de {} elementos*".format(len(failed_param)))
+
 
 forms.alert(
     "Proceso terminado:\n\n"

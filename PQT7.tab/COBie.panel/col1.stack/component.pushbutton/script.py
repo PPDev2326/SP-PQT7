@@ -129,12 +129,6 @@ if specialty == "ARQUITECTURA":
     headers = excel_instance.get_headers(excel_rows, 2)
     headers_required = excel_instance.headers_required(headers, columns_headers)
     data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
-    
-    # ==== Obtenemos tambien los nombres para el TagNumber
-    excel_rows_space = excel_instance.read_excel('ESTANDAR COBie SPACE ')
-    headers_space = excel_instance.get_headers(excel_rows, 2)
-    headers_required_space = excel_instance.headers_required(headers, columns_headers)
-    data_list_space = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
 
 elif specialty == "INSTALACIONES SANITARIAS":
     excel_instance = Excel()
@@ -142,12 +136,6 @@ elif specialty == "INSTALACIONES SANITARIAS":
     headers = excel_instance.get_headers(excel_rows, 2)
     headers_required = excel_instance.headers_required(headers, columns_headers)
     data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
-    
-    # ==== Obtenemos tambien los nombres para el TagNumber
-    excel_rows_space = excel_instance.read_excel('ESTANDAR COBie SPACE ')
-    headers_space = excel_instance.get_headers(excel_rows, 2)
-    headers_required_space = excel_instance.headers_required(headers, columns_headers)
-    data_list_space = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
 
 elif specialty == "INSTALACIONES ELECTRICAS":
     excel_instance = Excel()
@@ -155,12 +143,6 @@ elif specialty == "INSTALACIONES ELECTRICAS":
     headers = excel_instance.get_headers(excel_rows, 2)
     headers_required = excel_instance.headers_required(headers, columns_headers)
     data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
-    
-    # ==== Obtenemos tambien los nombres para el TagNumber
-    excel_rows_space = excel_instance.read_excel('ESTANDAR COBie SPACE ')
-    headers_space = excel_instance.get_headers(excel_rows, 2)
-    headers_required_space = excel_instance.headers_required(headers, columns_headers)
-    data_list_space = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
 
 elif specialty == "COMUNICACIONES":
     excel_instance = Excel()
@@ -168,12 +150,6 @@ elif specialty == "COMUNICACIONES":
     headers = excel_instance.get_headers(excel_rows, 2)
     headers_required = excel_instance.headers_required(headers, columns_headers)
     data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
-    
-    # ==== Obtenemos tambien los nombres para el TagNumber
-    excel_rows_space = excel_instance.read_excel('ESTANDAR COBie SPACE ')
-    headers_space = excel_instance.get_headers(excel_rows, 2)
-    headers_required_space = excel_instance.headers_required(headers, columns_headers)
-    data_list_space = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
 
 elif specialty == "INSTALACIONES MECANICAS":
     excel_instance = Excel()
@@ -181,12 +157,6 @@ elif specialty == "INSTALACIONES MECANICAS":
     headers = excel_instance.get_headers(excel_rows, 2)
     headers_required = excel_instance.headers_required(headers, columns_headers)
     data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
-    
-    # ==== Obtenemos tambien los nombres para el TagNumber
-    excel_rows_space = excel_instance.read_excel('ESTANDAR COBie SPACE ')
-    headers_space = excel_instance.get_headers(excel_rows, 2)
-    headers_required_space = excel_instance.headers_required(headers, columns_headers)
-    data_list_space = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
 
 else:
     forms.alert("Especialidad '{}' no reconocida para cargar datos Excel.".format(specialty), exitscript=True)
@@ -259,8 +229,10 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
             zonification_value = get_param_value(getParameter(elem, "S&P_ZONIFICACION"))
             mbr_value = divide_string(zonification_value, 1, compare="sitio", value_default="000")
             
-            ambiente_object = getParameter(elem, "S&P_AMBIENTE")
-            ambiente = get_param_value(ambiente_object)
+            # ==== Obtenemos el ambiente en el component space
+            space_component = getParameter(elem, "COBie.Component.Space")
+            space = get_param_value(space_component)
+            tag_number = divide_string(space, 0, ":")
             
             code_elem = get_param_value(getParameter(elem, "S&P_CODIGO DE ELEMENTO"))
             if code_elem not in (None, "", "n/a"):
@@ -325,13 +297,13 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
             parametros = {
                 "COBie.Component.Name": "{} : {} : {} : {}".format(name_category, family_name, name_type, id_elem),
                 "COBie.CreatedOn": CREATED_ON,
-                "COBie.Component.Space": ambiente,
+                # "COBie.Component.Space": ambiente,
                 "COBie.Component.Description": description,
                 "COBie.Component.SerialNumber": serial_number_value,
                 "COBie.Component.WarrantyStartDate": warranty_start_date,
-                "COBie.Component.TagNumber": "",
+                "COBie.Component.TagNumber": tag_number,
                 "COBie.Component.BarCode": "{}{}".format(mbr_value, id_elem),
-                "COBie.Component.AssetIdentifier": "{}-ZZ-{}-{}-{}".format(mbr_value, level, pr_number,mbr_value+str(id_elem) )
+                "COBie.Component.AssetIdentifier": "{}-ZZ-{}-{}-{}-{}".format(mbr_value, level, tag_number,pr_number,mbr_value+str(id_elem) )
             }
 
             for param_name, value in parametros.items():

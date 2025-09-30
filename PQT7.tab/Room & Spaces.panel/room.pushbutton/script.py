@@ -85,65 +85,67 @@ def obtener_dos_rooms_mas_cercanos(habitaciones, punto):
 def procesar_puerta_ventana(elemento, habitaciones, failed_list):
     """
     Procesamiento especial para puertas y ventanas:
-    Asigna los nombres de los 2 ambientes más cercanos ordenados por número de room.
-    Formato: "23 : SALA, 26 : COMEDOR"
+    Intenta usar FromRoom/ToRoom; si no están disponibles, usa proximidad.
     """
-    pts = puntos_representativos(elemento) or []
-    if not pts:
-        return False
-    
-    # Usar el primer punto representativo
-    punto = next((p for p in pts if p), None)
-    if not punto:
-        return False
-    
     try:
-        dos_cercanos = obtener_dos_rooms_mas_cercanos(habitaciones, punto)
-        
-        if not dos_cercanos:
+        # Primero intentamos usar FromRoom y ToRoom
+        from_room = None
+        to_room = None
+        try:
+            from_room = elemento.FromRoom[doc.Phase] if hasattr(elemento, "FromRoom") else None
+            to_room = elemento.ToRoom[doc.Phase] if hasattr(elemento, "ToRoom") else None
+        except:
+            pass
+
+        rooms_encontrados = []
+        if from_room: 
+            rooms_encontrados.append(from_room)
+        if to_room and to_room.Id != (from_room.Id if from_room else None): 
+            rooms_encontrados.append(to_room)
+
+        # Si no se encontraron, usar proximidad como antes
+        if not rooms_encontrados:
+            pts = puntos_representativos(elemento) or []
+            if pts:
+                punto = next((p for p in pts if p), None)
+                if punto:
+                    dos_cercanos = obtener_dos_rooms_mas_cercanos(habitaciones, punto)
+                    rooms_encontrados = [r for d, r in dos_cercanos]
+
+        if not rooms_encontrados:
             return False
-        
-        # Obtener nombres y números
+
+        # Procesar rooms encontrados
         rooms_con_datos = []
-        for distancia, room in dos_cercanos:
+        for room in rooms_encontrados:
             nombre = get_room_name(room)
             numero = get_room_number(room)
-            # Solo agregar si tiene nombre y número válidos
             if nombre and numero:
-                rooms_con_datos.append((numero, nombre.upper(), room))
-        
+                rooms_con_datos.append((numero, nombre.upper()))
+
         if not rooms_con_datos:
             return False
-        
-        # Ordenar por número (de menor a mayor)
+
+        # Ordenar por número
         rooms_con_datos.sort(key=lambda x: extraer_numero_para_ordenar(x[0]))
-        
-        # Construir el formato especial para puertas/ventanas
+
+        # Construir cadena
         if len(rooms_con_datos) >= 2:
-            # Formato: "23 : SALA, 26 : COMEDOR"
             nombre_combinado = "{} : {}, {} : {}".format(
-                rooms_con_datos[0][0],  # número 1
-                rooms_con_datos[0][1],  # nombre 1 (ya está en mayúsculas)
-                rooms_con_datos[1][0],  # número 2
-                rooms_con_datos[1][1]   # nombre 2 (ya está en mayúsculas)
+                rooms_con_datos[0][0], rooms_con_datos[0][1],
+                rooms_con_datos[1][0], rooms_con_datos[1][1]
             )
-            valor_cobie = nombre_combinado
-        elif len(rooms_con_datos) == 1:
-            # Si solo hay un ambiente, formato normal
-            nombre_combinado = "{} : {}".format(
-                rooms_con_datos[0][0],
-                rooms_con_datos[0][1]
-            )
-            valor_cobie = nombre_combinado
         else:
-            return False
-        
-        # Asignación especial para puertas/ventanas
-        return asignar_ambiente_puerta_ventana(elemento, nombre_combinado, valor_cobie, failed_list)
-        
+            nombre_combinado = "{} : {}".format(
+                rooms_con_datos[0][0], rooms_con_datos[0][1]
+            )
+
+        return asignar_ambiente_puerta_ventana(elemento, nombre_combinado, nombre_combinado, failed_list)
+
     except Exception as e:
         output.print_md("**Error procesando puerta/ventana {}: {}**".format(elemento.Id, str(e)))
         return False
+
 
 
 def verificar_parametros_vacios(elemento):

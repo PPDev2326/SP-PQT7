@@ -231,9 +231,13 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
             mbr_value = divide_string(zonification_value, 1, compare="sitio", value_default="000")
             
             # ==== Obtenemos el ambiente en el component space
+            tag_number = 0
             space_component = getParameter(elem, "COBie.Component.Space")
             space = get_param_value(space_component)
-            tag_number = find_mapped_number(space)
+            if "," in space:
+                tag_number = divide_string(space, 0, ",")
+            else:
+                tag_number = find_mapped_number(space)
             
             code_elem = get_param_value(getParameter(elem, "S&P_CODIGO DE ELEMENTO"))
             if code_elem not in (None, "", "n/a"):

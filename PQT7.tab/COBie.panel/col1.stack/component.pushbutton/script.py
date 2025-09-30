@@ -235,7 +235,8 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
             space_component = getParameter(elem, "COBie.Component.Space")
             space = get_param_value(space_component)
             if "," in space:
-                tag_number = divide_string(space, 0, ",")
+                tag_number_separate = divide_string(space, 0, ",")
+                tag_number = find_mapped_number(tag_number_separate)
             else:
                 tag_number = find_mapped_number(space)
             

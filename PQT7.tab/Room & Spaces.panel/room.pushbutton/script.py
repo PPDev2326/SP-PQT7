@@ -5,6 +5,7 @@ from pyrevit import revit, script, forms
 from Autodesk.Revit.DB import (
     StorageType, RevitLinkInstance, FilteredElementCollector, BuiltInParameter
 )
+from Extensions._Modulo import obtener_nombre_archivo, validar_nombre
 from Extensions._utils import (
     obtener_mapeo_nombres_categorias,
     obtener_elementos_de_categorias,
@@ -18,6 +19,10 @@ from Extensions._utils import (
 
 doc = revit.doc
 output = script.get_output()
+
+nombre_archivo = obtener_nombre_archivo()
+if not validar_nombre(nombre_archivo):
+    script.exit()
 
 # Constantes
 TOLERANCIA_PIES = 0.410105  # 12.5 cm en pies

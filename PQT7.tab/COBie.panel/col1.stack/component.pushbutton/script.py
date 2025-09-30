@@ -301,7 +301,7 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
                 "COBie.Component.WarrantyStartDate": warranty_start_date,
                 "COBie.Component.TagNumber": "",
                 "COBie.Component.BarCode": "{}{}".format(mbr_value, id_elem),
-                "COBie.Component.AssetIdentifier": "{}-ZZ-{}-{}-{}".format(mbr_value, level, pr_number,mbr_value+id_elem )
+                "COBie.Component.AssetIdentifier": "{}-ZZ-{}-{}-{}".format(mbr_value, level, pr_number,mbr_value+str(id_elem) )
             }
 
             for param_name, value in parametros.items():

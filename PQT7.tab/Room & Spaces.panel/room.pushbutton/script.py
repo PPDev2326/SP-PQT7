@@ -5,7 +5,6 @@ from pyrevit import revit, script, forms
 from Autodesk.Revit.DB import (
     StorageType, RevitLinkInstance, FilteredElementCollector, BuiltInParameter
 )
-from Extensions._Modulo import obtener_nombre_archivo, validar_nombre
 from Extensions._utils import (
     obtener_mapeo_nombres_categorias,
     obtener_elementos_de_categorias,
@@ -19,10 +18,6 @@ from Extensions._utils import (
 
 doc = revit.doc
 output = script.get_output()
-
-nombre_archivo = obtener_nombre_archivo()
-if not validar_nombre(nombre_archivo):
-    script.exit()
 
 # Constantes
 TOLERANCIA_PIES = 0.410105  # 12.5 cm en pies
@@ -353,29 +348,82 @@ def procesar_elemento_fase2(elemento, habitaciones, failed_list):
 def obtener_habitaciones(documento):
     """Obtiene habitaciones del documento actual o de vínculos seleccionados."""
     habs = obtener_habitaciones_y_espacios(documento)
+    
     if habs:
+        output.print_md("### ✅ Habitaciones encontradas en el modelo actual: {}".format(len(habs)))
         return habs
     
-    # Si no hay habitaciones, buscar en vínculos
+    # Si no hay habitaciones en el modelo actual, buscar en vínculos
+    output.print_md("### ⚠️ No se encontraron habitaciones en el modelo actual")
+    output.print_md("### 🔗 Buscando habitaciones en vínculos...")
+    
     links = FilteredElementCollector(documento).OfClass(RevitLinkInstance).ToElements()
-    nom_links = sorted({l.Name for l in links})
     
-    if not nom_links:
-        forms.alert("No hay habitaciones ni vínculos disponibles.", exitscript=True)
+    if not links:
+        forms.alert(
+            "No se encontraron habitaciones en el modelo actual\n"
+            "y no hay vínculos disponibles en el proyecto.",
+            title="Sin habitaciones",
+            exitscript=True
+        )
     
+    # Filtrar solo vínculos cargados
+    links_cargados = [l for l in links if l.GetLinkDocument() is not None]
+    
+    if not links_cargados:
+        forms.alert(
+            "No se encontraron habitaciones en el modelo actual\n"
+            "y no hay vínculos CARGADOS en el proyecto.\n\n"
+            "Carga al menos un vínculo con habitaciones.",
+            title="Sin vínculos cargados",
+            exitscript=True
+        )
+    
+    # Preparar lista de vínculos con información
+    nom_links_info = []
+    for link in links_cargados:
+        link_doc = link.GetLinkDocument()
+        if link_doc:
+            # Contar habitaciones en el vínculo
+            link_rooms = FilteredElementCollector(link_doc).OfCategory(
+                doc.Settings.Categories.get_Item("Rooms")
+            ).WhereElementIsNotElementType().ToElements()
+            
+            num_rooms = len([r for r in link_rooms if r.Area > 0])
+            nom_links_info.append("{} ({} habitaciones)".format(link.Name, num_rooms))
+    
+    if not nom_links_info:
+        forms.alert(
+            "No se encontraron habitaciones en ningún vínculo cargado.",
+            title="Sin habitaciones en vínculos",
+            exitscript=True
+        )
+    
+    # Selección de vínculos
     sel_links = forms.SelectFromList.show(
-        nom_links, 
+        sorted(nom_links_info), 
         multiselect=True,
-        title="Selecciona vínculos con habitaciones"
+        title="Selecciona vínculos con habitaciones",
+        button_name="Usar estos vínculos"
     )
     
     if not sel_links:
-        forms.alert("No se seleccionaron vínculos.", exitscript=True)
+        forms.alert("No se seleccionaron vínculos.", title="Cancelado", exitscript=True)
     
-    habs = obtener_habitaciones_de_vinculos_seleccionados(documento, sel_links)
+    # Extraer nombres originales (sin el conteo)
+    nombres_originales = [s.split(" (")[0] for s in sel_links]
+    
+    habs = obtener_habitaciones_de_vinculos_seleccionados(documento, nombres_originales)
     
     if not habs:
-        forms.alert("No se encontraron habitaciones en los vínculos.", exitscript=True)
+        forms.alert(
+            "No se pudieron obtener habitaciones de los vínculos seleccionados.",
+            title="Error",
+            exitscript=True
+        )
+    
+    output.print_md("### ✅ Habitaciones encontradas en vínculos: {}".format(len(habs)))
+    output.print_md("Vínculos utilizados: {}".format(", ".join(nombres_originales)))
     
     return habs
 
@@ -542,39 +590,61 @@ total_ignorados = len(elems_ignorados_cobie) + len(elems_ignorados_llenos)
 output.print_md("---")
 output.print_md("### 📊 Resumen de Resultados")
 if asignados_especial > 0:
-    output.print_md("- **Puertas/Ventanas** (2 ambientes): {}".format(asignados_especial))
+    output.print_md("- **Puertas/Ventanas/Genéricos** (2 ambientes): {}".format(asignados_especial))
 output.print_md("- **Fase 1** (dentro de habitación): {}".format(asignados_fase1))
 output.print_md("- **Fase 2** (por proximidad): {}".format(asignados_fase2))
 output.print_md("- **Fase 3** (como '{}'): {}".format(FALLBACK_VALUE, asignados_fase3))
 output.print_md("- **Total asignados**: {}".format(total_asignados))
-output.print_md("- **Ignorados** (COBie inactivo): {}".format(len(elems_ignorados_cobie)))
-output.print_md("- **Ignorados** (parámetros ya llenos): {}".format(len(elems_ignorados_llenos)))
-output.print_md("- **Sin asignar**: {}".format(len(failed_param)))
+output.print_md("- **Ignorados** (COBie inactivo o parámetros llenos): {}".format(total_ignorados))
+output.print_md("- **Sin asignar** (sin parámetros válidos): {}".format(len(failed_param)))
 
-if elems_ignorados_cobie:
-    sample = elems_ignorados_cobie[:10]
-    lines = ["- Id {}".format(i) for i in sample]
-    extra = " (mostrando 10 de {})".format(len(elems_ignorados_cobie)) if len(elems_ignorados_cobie) > 10 else ""
-    output.print_md("#### ℹ️ Ignorados por COBie inactivo{}:\n{}".format(extra, "\n".join(lines)))
-
-if elems_ignorados_llenos:
-    sample = elems_ignorados_llenos[:10]
-    lines = ["- Id {}".format(i) for i in sample]
-    extra = " (mostrando 10 de {})".format(len(elems_ignorados_llenos)) if len(elems_ignorados_llenos) > 10 else ""
-    output.print_md("#### ℹ️ Ignorados por parámetros ya llenos{}:\n{}".format(extra, "\n".join(lines)))
+# Mostrar elementos asignados como "Activo" (para revisión manual)
+if asignados_fase3 > 0:
+    output.print_md("---")
+    output.print_md("### ⚠️ Elementos asignados como '{}' (requieren revisión manual)".format(FALLBACK_VALUE))
+    output.print_md("Total: {} elementos".format(asignados_fase3))
+    output.print_md("Haz clic en los IDs para seleccionarlos en Revit:")
+    
+    # Recolectar IDs de elementos asignados como "Activo"
+    elementos_activo = []
+    for e in elems:
+        if e.Id in elems_asignados:
+            try:
+                prm = e.LookupParameter(PARAM_NAME)
+                if prm and prm.AsString() == FALLBACK_VALUE:
+                    elementos_activo.append(e.Id)
+            except:
+                continue
+    
+    # Mostrar con links seleccionables (máximo 50 para no saturar)
+    muestra = elementos_activo[:50]
+    for elem_id in muestra:
+        output.print_element(elem_id)
+    
+    if len(elementos_activo) > 50:
+        output.print_md("\n*Mostrando 50 de {} elementos*".format(len(elementos_activo)))
 
 if failed_param:
+    output.print_md("---")
+    output.print_md("### ❌ Elementos sin parámetros válidos")
     sample = failed_param[:15]
-    lines = ["- Id {}".format(i) for i in sample]
-    extra = " (mostrando 15 de {})".format(len(failed_param)) if len(failed_param) > 15 else ""
-    output.print_md("#### ⚠️ Sin asignar (parámetros '{}' o '{}' faltantes o inválidos){}:\n{}".format(
-        PARAM_NAME, PARAM_COBIE, extra, "\n".join(lines)
-    ))
+    for elem_id in sample:
+        output.print_element(elem_id)
+    if len(failed_param) > 15:
+        output.print_md("\n*Mostrando 15 de {} elementos*".format(len(failed_param)))
 
 forms.alert(
     "Proceso terminado:\n\n"
-    "✅ {} elementos asignados\n"
-    "⏭️ {} elementos ignorados\n"
-    "❌ {} sin asignar (sin parámetros válidos)".format(total_asignados, total_ignorados, len(failed_param)),
+    "✅ {} elementos asignados correctamente\n"
+    "⚠️ {} elementos asignados como '{}' (revisar manualmente)\n"
+    "⏭️ {} elementos ignorados (COBie inactivo o ya llenos)\n"
+    "❌ {} sin parámetros válidos\n\n"
+    "Revisa la terminal para IDs seleccionables.".format(
+        asignados_fase1 + asignados_fase2 + asignados_especial, 
+        asignados_fase3,
+        FALLBACK_VALUE,
+        total_ignorados, 
+        len(failed_param)
+    ),
     title="Asignación Completada"
 )

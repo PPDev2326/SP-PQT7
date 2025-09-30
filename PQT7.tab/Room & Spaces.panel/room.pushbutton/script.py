@@ -635,18 +635,18 @@ if asignados_fase3 > 0:
     output.print_md("---")
     output.print_md("### ⚠️ Elementos asignados como '{}' (requieren revisión manual)".format(FALLBACK_VALUE))
     output.print_md("Total: {} elementos".format(asignados_fase3))
-    output.print_md("Haz clic en los IDs para seleccionarlos en Revit:")
+    output.print_md("**Nota:** Tu versión de pyRevit no soporta enlaces clickeables. Usa el ID para buscar el elemento en Revit.")
     
     muestra = elementos_activo[:50]
     output.print_md("") 
     for elem in muestra:
-        # **CORRECCIÓN DE COMPATIBILIDAD:** Usar print_element si está disponible, si no, usar output.link()
-        if hasattr(output, 'print_element'):
-            output.print_element(elem)
-        else:
-            # Fallback para versiones antiguas de PyRevit
-            output.print_md("ID {} | {}: {}".format(elem.Id.IntegerValue, elem.Category.Name, elem.Name))
-            output.link(elem.Id) 
+        # **CORRECCIÓN:** Imprimir como texto plano para evitar el error 'AttributeError: link'
+        try:
+            category_name = elem.Category.Name if elem.Category else "N/A"
+            element_name = elem.Name if elem.Name else "(Sin nombre)"
+            output.print_md("ID {} | {}: {}".format(elem.Id.IntegerValue, category_name, element_name))
+        except:
+            output.print_md("ID {} | Información no disponible.".format(elem.Id.IntegerValue))
     
     if len(elementos_activo) > 50:
         output.print_md("")
@@ -658,26 +658,24 @@ if asignados_fase3 > 0:
 if failed_param:
     output.print_md("---")
     output.print_md("### ❌ Elementos sin parámetros válidos")
-    output.print_md("Total: {} elementos. Haz clic en los IDs para seleccionarlos:".format(len(failed_param)))
-    
+    output.print_md("Total: {} elementos.".format(len(failed_param)))
+    output.print_md("**Nota:** Tu versión de pyRevit no soporta enlaces clickeables. Usa el ID para buscar el elemento en Revit.")
+
     sample_ids = failed_param[:15]
     
     output.print_md("")
     for elem_id in sample_ids:
+        # **CORRECCIÓN:** Imprimir como texto plano para evitar el error 'AttributeError: link'
         try:
             elem = doc.GetElement(elem_id)
             if elem:
-                 # **CORRECCIÓN DE COMPATIBILIDAD:** Usar print_element si está disponible
-                if hasattr(output, 'print_element'):
-                    output.print_element(elem)
-                else:
-                    # Fallback
-                    output.print_md("ID {} | {}: {}".format(elem_id.IntegerValue, elem.Category.Name, elem.Name))
-                    output.link(elem_id)
+                category_name = elem.Category.Name if elem.Category else "N/A"
+                element_name = elem.Name if elem.Name else "(Sin nombre)"
+                output.print_md("ID {} | {}: {}".format(elem_id.IntegerValue, category_name, element_name))
             else:
-                output.print_md("ID no encontrado: {}".format(elem_id.IntegerValue))
+                output.print_md("ID {} | Elemento no encontrado.".format(elem_id.IntegerValue))
         except Exception as e:
-            output.print_md("Error al mostrar ID {}: {}".format(elem_id.IntegerValue, str(e)))
+            output.print_md("ID {} | Error al mostrar.".format(elem_id.IntegerValue))
 
     if len(failed_param) > 15:
         output.print_md("\n*Mostrando 15 de {} elementos*".format(len(failed_param)))
@@ -688,7 +686,7 @@ forms.alert(
     "⚠️ {} elementos asignados como '{}' (revisar manualmente)\n"
     "⏭️ {} elementos ignorados (COBie inactivo o ya llenos)\n"
     "❌ {} sin parámetros válidos\n\n"
-    "Revisa la terminal para IDs seleccionables.".format(
+    "Revisa la terminal para IDs.".format(
         asignados_fase1 + asignados_fase2 + asignados_especial, 
         asignados_fase3,
         FALLBACK_VALUE,

@@ -55,7 +55,7 @@ survey_object = fec_basepoint.OfCategory(BuiltInCategory.OST_ProjectBasePoint).W
 ob_param_elevation = GetParameterAPI(survey_object, BuiltInParameter.BASEPOINT_ELEVATION_PARAM)
 param_elevation_value = get_param_value(ob_param_elevation)
 
-print(survey_object)
+print(param_elevation_value)
 
 list_level_name = []
 

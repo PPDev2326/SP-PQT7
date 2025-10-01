@@ -74,7 +74,7 @@ with revit.Transaction("Parametros COBie Floor"):
         if param_buildingplan_value == 1:
             level_name = level.Name
             if isinstance(level, Level):
-                project_elevation = level.ProjectElevation
+                elevation = level.Elevation
             list_level_name.append(level_name)
             
             if level_name in floor_category:
@@ -83,8 +83,8 @@ with revit.Transaction("Parametros COBie Floor"):
             parameters= {
                 "COBie.Floor.Name": level_name,
                 "COBie.Floor.Category": "",
-                "COBie.Floor.Description": "{}-{} (NPT:{})".format(level_name, param_zoning_value, project_elevation),
-                "COBie.Floor.Elevation": UnitUtils.ConvertToInternalUnits(param_elevation_value + project_elevation, UnitTypeId.Meters),
+                "COBie.Floor.Description": "{}-{} (NPT:{})".format(level_name, param_zoning_value, elevation),
+                "COBie.Floor.Elevation": UnitUtils.ConvertToInternalUnits(param_elevation_value + elevation, UnitTypeId.Meters),
                 "COBie.Floor.Height": ""
             }
             

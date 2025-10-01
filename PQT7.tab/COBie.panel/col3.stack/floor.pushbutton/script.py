@@ -23,6 +23,16 @@ list_level_name = []
 for level in list_levels_object:
     list_level_name.append(level.Name)
 
-logger.info("Esto es solo información")
-logger.warning("Ojo con este aviso")
-logger.error("Algo salió mal")
+# Log para debug
+logger.info("Inicio del script")
+
+# Mostrar tabla en el output
+output.print_table(
+    table_data=[["ID", "Nombre"], [1, "Muro"], [2, "Puerta"]],
+    title="Elementos procesados"
+)
+
+# Mensaje con formato
+output.print_md("### Procesamiento completado ✅")
+
+logger.warning("Se ignoraron 2 elementos")

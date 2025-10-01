@@ -49,7 +49,8 @@ def get_codigo_partida(elemento, documento):
         if param_n2 and param_n2.HasValue:
             valor_n2 = param_n2.AsString()
             if valor_n2 and valor_n2.strip():
-                return valor_n2.strip()
+                if valor_n2.strip() != "n/a":
+                    return valor_n2.strip()
         
         # Fallback a N°1 si N°2 no está disponible o está vacío
         param_n1 = elemento.LookupParameter("S&P_CODIGO PARTIDA N°1")

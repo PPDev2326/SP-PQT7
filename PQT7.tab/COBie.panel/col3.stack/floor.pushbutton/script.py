@@ -53,7 +53,9 @@ list_levels_object = fec.OfClass(Level).WhereElementIsNotElementType().ToElement
 survey_object = fec.OfCategory(BuiltInCategory.OST_SharedBasePoint).WhereElementIsNotElementType().FirstElement()
 ob_param_elevation = GetParameterAPI(survey_object, BuiltInParameter.BASEPOINT_ELEVATION_PARAM)
 param_elevation_value = get_param_value(ob_param_elevation)
-    
+
+print(param_elevation_value)
+
 list_level_name = []
 
 # ==== Abrimos la transaction para iniciar con los cambios ====

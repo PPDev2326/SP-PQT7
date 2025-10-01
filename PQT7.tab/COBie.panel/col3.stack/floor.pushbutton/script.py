@@ -2,7 +2,7 @@
 __title__ = "COBie Floor"
 
 # ========== Obtenemos las librerias necesarias ==========
-from Autodesk.Revit.DB import FilteredElementCollector, Level, BuiltInParameter
+from Autodesk.Revit.DB import FilteredElementCollector, Level, BuiltInParameter, BuiltInCategory, UnitUtils, UnitTypeId
 from Autodesk.Revit.UI import TaskDialog
 from pyrevit import script, revit, forms
 from Extensions._RevitAPI import get_param_value, GetParameterAPI, getParameter, SetParameter
@@ -49,26 +49,46 @@ logger.info("Inicio del script")
 fec = FilteredElementCollector(doc)
 list_levels_object = fec.OfClass(Level).WhereElementIsNotElementType().ToElements()
 
+# ==== Obtenemos el Survey Point (Punto topografico) ====
+survey_object = fec.OfCategory(BuiltInCategory.OST_SharedBasePoint).WhereElementIsNotElementType().FirstElement()
+ob_param_elevation = GetParameterAPI(survey_object, BuiltInParameter.BASEPOINT_ELEVATION_PARAM)
+param_elevation_value = get_param_value(ob_param_elevation)
+    
 list_level_name = []
 
-for level in list_levels_object:
-    ob_param_buildingplan = GetParameterAPI(level, BuiltInParameter.LEVEL_IS_BUILDING_STORY)
-    param_buildingplan_value = get_param_value(ob_param_buildingplan)
-    
-    if param_buildingplan_value == 1:
-        level_name = level.Name
-        list_level_name.append(level_name)
+# ==== Abrimos la transaction para iniciar con los cambios ====
+with revit.Transaction("Parametros COBie Floor"):
+
+    for level in list_levels_object:
+        # ==== Obtenemos el parametro planta de edificacion ====
+        ob_param_buildingplan = GetParameterAPI(level, BuiltInParameter.LEVEL_IS_BUILDING_STORY)
+        param_buildingplan_value = get_param_value(ob_param_buildingplan)
         
-        if level_name in floor_category:
-            floot_category_value = floor_category.get()
+        # ==== Obtenemos el parametro Zonificación ====
+        ob_param_zoning = getParameter(level, "S&P_ZONIFICACION")
+        param_zoning_value = get_param_value(ob_param_zoning)
         
-        parameters= {
-            "COBie.Floor.Name": level_name,
-            "COBie.Floor.Category": "",
-            "COBie.Floor.Description": "",
-            "COBie.Floor.Elevation": "",
-            "COBie.Floor.Height": ""
-        }
+        if param_buildingplan_value == 1:
+            level_name = level.Name
+            if isinstance(level, Level):
+                project_elevation = level.ProjectElevation
+            list_level_name.append(level_name)
+            
+            if level_name in floor_category:
+                floot_category_value = floor_category.get()
+            
+            parameters= {
+                "COBie.Floor.Name": level_name,
+                "COBie.Floor.Category": "",
+                "COBie.Floor.Description": "{}-{} (NPT:{})".format(level_name, param_zoning_value, project_elevation),
+                "COBie.Floor.Elevation": "{}".format(UnitUtils.ConvertFromInternalUnits(param_elevation_value + project_elevation, UnitTypeId.Meters)),
+                "COBie.Floor.Height": ""
+            }
+            
+            for parameter, value in parameters.items():
+                param = getParameter(level, parameter)
+                if param and not param.IsReadOnly:
+                    SetParameter(param, value)
 
 # ==== Mostrar tabla en el output ====
 output.print_table(

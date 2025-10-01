@@ -5,6 +5,7 @@ from pyrevit import revit, script, forms
 from Autodesk.Revit.DB import (
     StorageType, RevitLinkInstance, FilteredElementCollector, BuiltInParameter, ElementId
 )
+from Extensions._Modulo import obtener_nombre_archivo, validar_nombre
 from Extensions._utils import (
     obtener_mapeo_nombres_categorias,
     obtener_elementos_de_categorias,
@@ -440,6 +441,10 @@ def obtener_habitaciones(documento):
     output.print_md("Vínculos utilizados: {}".format(", ".join(nombres_originales)))
     
     return habs
+
+nombre_archivo = obtener_nombre_archivo()
+if not validar_nombre(nombre_archivo):
+    script.exit()
 
 # ==================== INICIO DEL SCRIPT ====================
 

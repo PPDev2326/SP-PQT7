@@ -507,6 +507,7 @@ asignados_fase1 = 0
 asignados_fase2 = 0
 asignados_fase3 = 0
 asignados_especial = 0
+elementos_fase3_ids = []
 
 # ==================== PROCESAMIENTO EN UNA SOLA TRANSACCIÓN ====================
 
@@ -581,6 +582,7 @@ with revit.Transaction("Asignar Ambiente"):
         if asignar_ambiente(e, FALLBACK_VALUE, "", failed_param):
             elems_asignados.add(e.Id)
             asignados_fase3 += 1
+            elementos_fase3_ids.append(e.Id)
 
 # ==================== RESULTADOS ====================
 
@@ -604,47 +606,65 @@ if asignados_fase3 > 0:
     output.print_md("### ⚠️ Elementos asignados como '{}' (requieren revisión manual)".format(FALLBACK_VALUE))
     output.print_md("Total: {} elementos".format(asignados_fase3))
     output.print_md("Haz clic en los IDs para seleccionarlos en Revit:")
-    
-    # Recolectar elementos completos asignados como "Activo"
-    elementos_activo = []
-    for e in elems:
-        if e.Id in elems_asignados:
-            try:
-                prm = e.LookupParameter(PARAM_NAME)
-                if prm and prm.AsString() == FALLBACK_VALUE:
-                    elementos_activo.append(e)
-            except:
-                continue
+    output.print_md("")
     
     # Mostrar con links seleccionables (máximo 50 para no saturar)
-    muestra = elementos_activo[:50]
-    output.print_md("")  # Línea en blanco para separación
-    for elem in muestra:
+    muestra_ids = elementos_fase3_ids[:50]
+    
+    for elem_id in muestra_ids:
         try:
-            cat_name = elem.Category.Name if elem.Category else "Sin categoría"
-            elem_name = elem.Name if hasattr(elem, 'Name') else "Sin nombre"
-            
-            # Crear link seleccionable
-            output.print_md("- **{}** - {} - ID: {}".format(
-                cat_name,
-                elem_name,
-                output.linkify(elem.Id)
-            ))
-        except Exception as e:
-            output.print_md("- Error con elemento ID: {}".format(elem.Id.IntegerValue))
+            elem = doc.GetElement(elem_id)
+            if elem:
+                cat_name = elem.Category.Name if elem.Category else "Sin categoría"
+                
+                # Intentar obtener nombre del tipo
+                elem_name = ""
+                try:
+                    tipo = doc.GetElement(elem.GetTypeId())
+                    if tipo:
+                        elem_name = tipo.get_Parameter(BuiltInParameter.ALL_MODEL_TYPE_NAME).AsString()
+                except:
+                    pass
+                
+                if not elem_name:
+                    elem_name = "Sin nombre"
+                
+                # Crear link seleccionable
+                output.print_md("- **{}** | {} | ID: {}".format(
+                    cat_name,
+                    elem_name,
+                    output.linkify(elem_id)
+                ))
+            else:
+                # Si no se puede obtener el elemento, al menos mostrar el ID
+                output.print_md("- ID: {}".format(output.linkify(elem_id)))
+        except Exception as ex:
+            # En caso de error, mostrar el ID de todas formas
+            output.print_md("- ID: {} (Error: {})".format(output.linkify(elem_id), str(ex)))
+    
+    if len(elementos_fase3_ids) > 50:
+        output.print_md("")
+        output.print_md("*Mostrando 50 de {} elementos*".format(len(elementos_fase3_ids)))
 
 if failed_param:
     output.print_md("---")
     output.print_md("### ❌ Elementos sin parámetros válidos")
+    output.print_md("")
     sample = failed_param[:15]
+    
     for elem_id in sample:
-        # ❌ Esto tampoco funciona:
-        # output.print_element(elem_id)
-        
-        # ✅ Usa esto:
-        output.print_md("- ID: {}".format(output.linkify(elem_id)))
+        try:
+            elem = doc.GetElement(elem_id)
+            if elem and elem.Category:
+                cat_name = elem.Category.Name
+                output.print_md("- **{}** | ID: {}".format(cat_name, output.linkify(elem_id)))
+            else:
+                output.print_md("- ID: {}".format(output.linkify(elem_id)))
+        except:
+            output.print_md("- ID: {}".format(output.linkify(elem_id)))
     
     if len(failed_param) > 15:
+        output.print_md("")
         output.print_md("*Mostrando 15 de {} elementos*".format(len(failed_param)))
 
 forms.alert(

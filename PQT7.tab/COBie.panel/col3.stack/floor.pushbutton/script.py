@@ -14,7 +14,7 @@ uidoc = revit.uidoc
 # ==== Instanciamos la salida output y logger ====
 output = script.get_output()
 logger = script.get_logger()
-logger.setLevel(logging.DEBUG)
+# logger.setLevel(logging.DEBUG)
 
 # ==== Obtenemos los niveles del modelo con el FilteredElementCollector ====
 fec = FilteredElementCollector(doc)

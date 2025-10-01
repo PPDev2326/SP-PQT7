@@ -408,9 +408,9 @@ for type_id, type_data in element_types_data.items():
                             valor_metros = float(valor_excel)
                             valor_excel = UnitUtils.ConvertToInternalUnits(valor_metros, UnitTypeId.Meters)
                         else:
-                            valor_excel = None
+                            valor_excel = 0
                     except (ValueError, TypeError):
-                        valor_excel = None
+                        valor_excel = 0
                 
                 elif excel_param == "COBie.Type.ReplacementCost":
                     try:

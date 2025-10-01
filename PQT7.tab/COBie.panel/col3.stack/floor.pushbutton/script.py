@@ -46,13 +46,14 @@ parameters_static = {
 logger.info("Inicio del script")
 
 # ==== Obtenemos los niveles del modelo con el FilteredElementCollector ====
-fec = FilteredElementCollector(doc)
-list_levels_object = fec.OfClass(Level).WhereElementIsNotElementType().ToElements()
+fec_levels = FilteredElementCollector(doc)
+list_levels_object = fec_levels.OfClass(Level).WhereElementIsNotElementType().ToElements()
 
 # ==== Obtenemos el punto base del proyecto ====
-survey_object = fec.OfCategory(BuiltInCategory.OST_ProjectBasePoint).WhereElementIsNotElementType().FirstElement()
-# ob_param_elevation = GetParameterAPI(survey_object, BuiltInParameter.BASEPOINT_ELEVATION_PARAM)
-# param_elevation_value = get_param_value(ob_param_elevation)
+fec_basepoint = FilteredElementCollector(doc)
+survey_object = fec_basepoint.OfCategory(BuiltInCategory.OST_ProjectBasePoint).WhereElementIsNotElementType().FirstElement()
+ob_param_elevation = GetParameterAPI(survey_object, BuiltInParameter.BASEPOINT_ELEVATION_PARAM)
+param_elevation_value = get_param_value(ob_param_elevation)
 
 print(survey_object)
 

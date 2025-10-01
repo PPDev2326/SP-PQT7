@@ -12,6 +12,11 @@ uidoc = revit.uidoc
 
 # ==== Obtenemos los niveles del modelo con el FilteredElementCollector ====
 fec = FilteredElementCollector(doc)
-list_levels = fec.OfClass(Level).WhereElementIsNotElementType().ToElements()
+list_levels_object = fec.OfClass(Level).WhereElementIsNotElementType().ToElements()
 
-print(list_levels)
+list_level_name = []
+
+for level in list_levels_object:
+    list_level_name.append(level.Name)
+
+print(list_level_name)

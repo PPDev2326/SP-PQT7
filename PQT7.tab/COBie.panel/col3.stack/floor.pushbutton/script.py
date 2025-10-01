@@ -51,8 +51,8 @@ list_levels_object = fec.OfClass(Level).WhereElementIsNotElementType().ToElement
 
 # ==== Obtenemos el Survey Point (Punto topografico) ====
 survey_object = fec.OfCategory(BuiltInCategory.OST_ProjectBasePoint).WhereElementIsNotElementType().ToElements()
-ob_param_elevation = GetParameterAPI(survey_object, BuiltInParameter.BASEPOINT_ELEVATION_PARAM)
-param_elevation_value = get_param_value(ob_param_elevation)
+# ob_param_elevation = GetParameterAPI(survey_object, BuiltInParameter.BASEPOINT_ELEVATION_PARAM)
+# param_elevation_value = get_param_value(ob_param_elevation)
 
 print(survey_object)
 

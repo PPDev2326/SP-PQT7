@@ -620,18 +620,30 @@ if asignados_fase3 > 0:
     muestra = elementos_activo[:50]
     output.print_md("")  # Línea en blanco para separación
     for elem in muestra:
-        output.print_element(elem)
-    
-    if len(elementos_activo) > 50:
-        output.print_md("")
-        output.print_md("*Mostrando 50 de {} elementos*".format(len(elementos_activo)))
+        try:
+            cat_name = elem.Category.Name if elem.Category else "Sin categoría"
+            elem_name = elem.Name if hasattr(elem, 'Name') else "Sin nombre"
+            
+            # Crear link seleccionable
+            output.print_md("- **{}** - {} - ID: {}".format(
+                cat_name,
+                elem_name,
+                output.linkify(elem.Id)
+            ))
+        except Exception as e:
+            output.print_md("- Error con elemento ID: {}".format(elem.Id.IntegerValue))
 
 if failed_param:
     output.print_md("---")
     output.print_md("### ❌ Elementos sin parámetros válidos")
     sample = failed_param[:15]
     for elem_id in sample:
-        output.print_element(elem_id)
+        # ❌ Esto tampoco funciona:
+        # output.print_element(elem_id)
+        
+        # ✅ Usa esto:
+        output.print_md("- ID: {}".format(output.linkify(elem_id)))
+    
     if len(failed_param) > 15:
         output.print_md("*Mostrando 15 de {} elementos*".format(len(failed_param)))
 

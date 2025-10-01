@@ -84,7 +84,7 @@ with revit.Transaction("Parametros COBie Floor"):
                 "COBie.Floor.Name": level_name,
                 "COBie.Floor.Category": "",
                 "COBie.Floor.Description": "{}-{} (NPT:{})".format(level_name, param_zoning_value, elevation),
-                "COBie.Floor.Elevation": UnitUtils.ConvertToInternalUnits(param_elevation_value + elevation, UnitTypeId.Meters),
+                "COBie.Floor.Elevation": UnitUtils.ConvertFromInternalUnits(param_elevation_value + elevation, UnitTypeId.Meters),
                 "COBie.Floor.Height": ""
             }
             

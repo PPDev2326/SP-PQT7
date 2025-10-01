@@ -50,7 +50,7 @@ fec = FilteredElementCollector(doc)
 list_levels_object = fec.OfClass(Level).WhereElementIsNotElementType().ToElements()
 
 # ==== Obtenemos el Survey Point (Punto topografico) ====
-survey_object = fec.OfCategory(BuiltInCategory.OST_SharedBasePoint).WhereElementIsNotElementType().FirstElement()
+survey_object = fec.OfCategory(BuiltInCategory.OST_ProjectBasePoint).WhereElementIsNotElementType().FirstElement()
 ob_param_elevation = GetParameterAPI(survey_object, BuiltInParameter.BASEPOINT_ELEVATION_PARAM)
 param_elevation_value = get_param_value(ob_param_elevation)
 

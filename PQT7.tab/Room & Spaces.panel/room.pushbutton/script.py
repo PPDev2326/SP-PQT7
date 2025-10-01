@@ -384,13 +384,27 @@ def obtener_habitaciones(documento):
     for link in links_cargados:
         link_doc = link.GetLinkDocument()
         if link_doc:
-            # Contar habitaciones en el vínculo
-            link_rooms = FilteredElementCollector(link_doc).OfCategory(
-                doc.Settings.Categories.get_Item("Rooms")
-            ).WhereElementIsNotElementType().ToElements()
-            
-            num_rooms = len([r for r in link_rooms if r.Area > 0])
-            nom_links_info.append("{} ({} habitaciones)".format(link.Name, num_rooms))
+            try:
+                # CORRECCIÓN: Usar las categorías del documento del vínculo
+                link_rooms = FilteredElementCollector(link_doc).OfCategory(
+                    link_doc.Settings.Categories.get_Item("Rooms")  # ✅ Usar link_doc
+                ).WhereElementIsNotElementType().ToElements()
+                
+                num_rooms = len([r for r in link_rooms if r.Area > 0])
+                nom_links_info.append("{} ({} habitaciones)".format(link.Name, num_rooms))
+            except Exception as e:
+                # Si no tiene categoría Rooms, intentar con BuiltInCategory
+                try:
+                    from Autodesk.Revit.DB import BuiltInCategory
+                    link_rooms = FilteredElementCollector(link_doc).OfCategory(
+                        BuiltInCategory.OST_Rooms
+                    ).WhereElementIsNotElementType().ToElements()
+                    
+                    num_rooms = len([r for r in link_rooms if r.Area > 0])
+                    nom_links_info.append("{} ({} habitaciones)".format(link.Name, num_rooms))
+                except:
+                    # Si falla, agregar con 0 habitaciones
+                    nom_links_info.append("{} (0 habitaciones)".format(link.Name))
     
     if not nom_links_info:
         forms.alert(
@@ -426,7 +440,6 @@ def obtener_habitaciones(documento):
     output.print_md("Vínculos utilizados: {}".format(", ".join(nombres_originales)))
     
     return habs
-
 
 # ==================== INICIO DEL SCRIPT ====================
 

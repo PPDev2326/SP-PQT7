@@ -34,7 +34,7 @@ def extract_number_nivel(nivel):
     
     # Si es TECHO → devolver TECHO
     if "TECHO" in nivel:
-        return "TECHO"
+        return "RF"
     
     # Si hay número → devolver número
     match = re.search(r"-?\d+", nivel)

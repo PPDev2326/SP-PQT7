@@ -71,33 +71,33 @@ fec_information = FilteredElementCollector(doc)
 information_object = fec_information.OfCategory(BuiltInCategory.OST_ProjectInformation).WhereElementIsNotElementType().FirstElement()
 param_information_value = get_param_value(getParameter(information_object, "SiteObjectType"))
 
+# ==== Variables para recopilar datos de salida ====
+processed_levels = []
+skipped_levels = []
+
 # ==== Abrimos la transaction para iniciar con los cambios ====
 with revit.Transaction("Parametros COBie Floor"):
 
     for level in list_levels_object:
-        # ==== Obtenemos el parametro planta de edificacion ====
         ob_param_buildingplan = GetParameterAPI(level, BuiltInParameter.LEVEL_IS_BUILDING_STORY)
         param_buildingplan_value = get_param_value(ob_param_buildingplan)
         
-        # ==== Obtenemos el parametro Zonificación ====
         ob_param_zoning = getParameter(level, "S&P_ZONIFICACION")
         param_zoning_value = get_param_value(ob_param_zoning)
         
         if param_buildingplan_value == 1:
             level_name = level.Name
-            if isinstance(level, Level):
-                elevation = level.Elevation
-            
+            elevation = level.Elevation if isinstance(level, Level) else 0.0
+
             if "Sitio" in param_information_value:
                 category_value = "Site"
-            
+            elif "nivel" in level_name.lower() or "piso" in level_name.lower():
+                category_value = "Floor"
+            elif "techo" in level_name.lower() or "cobertura" in level_name.lower():
+                category_value = "Roof"
             else:
-                if "nivel" in level_name.lower() or "piso" in level_name.lower():
-                    category_value = "Floor"
-                
-                elif "techo" in level_name.lower() or "cobertura" in level_name.lower():
-                    category_value = "Roof"
-            
+                category_value = "Sin categoria"
+
             parameters= {
                 "COBie.Floor.Name": level_name,
                 "COBie.Floor.Category": category_value,
@@ -105,7 +105,6 @@ with revit.Transaction("Parametros COBie Floor"):
                 "COBie.Floor.Elevation": param_elevation_value + elevation,
                 "COBie.Floor.Height": elevation
             }
-            
             parameters.update(parameters_static)
             
             for parameter, value in parameters.items():
@@ -113,13 +112,20 @@ with revit.Transaction("Parametros COBie Floor"):
                 if param and not param.IsReadOnly:
                     SetParameter(param, value)
 
-# ==== Mostrar tabla en el output ====
-output.print_table(
-    table_data=[["ID", "Nombre"], [1, "Muro"], [2, "Puerta"]],
-    title="Elementos procesados"
-)
+            processed_levels.append([level.Id.IntegerValue, level_name, category_value])
+        else:
+            skipped_levels.append(level.Name)
 
-# ==== Mensaje con formato ====
-output.print_md("### Procesamiento completado ✅")
+# ==== Salidas profesionales ====
+if processed_levels:
+    output.print_md("## ✅ Procesamiento COBie Floor completado")
+    output.print_md("**Niveles procesados:** {0}".format(len(processed_levels)))
+    output.print_table(
+        table_data=[["ID", "Nombre", "Categoria"]] + processed_levels,
+        title="Resumen de niveles procesados"
+    )
 
-logger.warning("Se ignoraron 2 elementos")
+if skipped_levels:
+    output.print_md("### ⚠️ Niveles ignorados (no son plantas de edificación):")
+    for name in skipped_levels:
+        output.print_md("- {0}".format(name))

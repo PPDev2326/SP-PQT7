@@ -5,6 +5,7 @@ __title__ = "COBie Floor"
 from Autodesk.Revit.DB import FilteredElementCollector, Level, BuiltInParameter, BuiltInCategory, UnitUtils, UnitTypeId
 from Autodesk.Revit.UI import TaskDialog
 from pyrevit import script, revit, forms
+from Extensions._Modulo import obtener_nombre_archivo, validar_nombre
 from Extensions._RevitAPI import get_param_value, GetParameterAPI, getParameter, SetParameter
 from DBRepositories.SchoolRepository import ColegiosRepository
 
@@ -30,6 +31,10 @@ def divide_string(text, idx, character_divider=None, compare=None, value_default
 # ==== obtenemos el documento y el uidocument del modelo activo ====
 doc = revit.doc
 uidoc = revit.uidoc
+
+nombre_archivo = obtener_nombre_archivo()
+if not validar_nombre(nombre_archivo):
+    script.exit()
 
 # ==== Instanciamos el colegio correspondiente al modelo actual ====
 schools_repositories = ColegiosRepository()

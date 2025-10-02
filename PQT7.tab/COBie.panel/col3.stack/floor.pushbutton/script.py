@@ -120,10 +120,9 @@ with revit.Transaction("Parametros COBie Floor"):
 if processed_levels:
     output.print_md("## ✅ Procesamiento COBie Floor completado")
     output.print_md("**Niveles procesados:** {0}".format(len(processed_levels)))
-    output.print_table(
-        table_data=[["ID", "Nombre", "Categoria"]] + processed_levels,
-        title="Resumen de niveles procesados"
-    )
+
+    for level_id, level_name, category in processed_levels:
+        output.print_md("- **{0}** | {1} | {2}".format(level_id, level_name, category))
 
 if skipped_levels:
     output.print_md("### ⚠️ Niveles ignorados (no son plantas de edificación):")

@@ -9,25 +9,6 @@ from Extensions._Modulo import obtener_nombre_archivo, validar_nombre
 from Extensions._RevitAPI import get_param_value, GetParameterAPI, getParameter, SetParameter
 from DBRepositories.SchoolRepository import ColegiosRepository
 
-# ==== Creacion de metodos ====
-def divide_string(text, idx, character_divider=None, compare=None, value_default=None):
-    """
-    Divide un string en partes usando un separador y devuelve el elemento en la posición idx.
-    Si el texto completo coincide con 'compare', devuelve 'value_default'.
-    """
-    if not text:
-        return ""
-    
-    # Verificar coincidencia antes de dividir
-    if compare and text.strip().lower() == compare.lower():
-        return value_default
-    
-    parts = text.split(character_divider) if character_divider else text.split()
-    if idx < 0 or idx >= len(parts):
-        return ""
-    
-    return parts[idx]
-
 # ==== obtenemos el documento y el uidocument del modelo activo ====
 doc = revit.doc
 uidoc = revit.uidoc
@@ -118,7 +99,11 @@ with revit.Transaction("Parametros COBie Floor"):
             parameters= {
                 "COBie.Floor.Name": level_name,
                 "COBie.Floor.Category": category_value,
-                "COBie.Floor.Description": "{}-{} (NPT:{})".format(level_name, param_zoning_value, UnitUtils.ConvertFromInternalUnits(elevation, UnitTypeId.Meters)),
+                "COBie.Floor.Description": "{}-{} (NPT:{})".format(
+                    level_name, 
+                    param_zoning_value, 
+                    round(UnitUtils.ConvertFromInternalUnits(elevation, UnitTypeId.Meters), 2)
+                ),
                 "COBie.Floor.Elevation": param_elevation_value + elevation,
                 "COBie.Floor.Height": floor_height
             }

@@ -46,6 +46,8 @@ logger.info("Inicio del script")
 fec_levels = FilteredElementCollector(doc)
 list_levels_object = fec_levels.OfClass(Level).WhereElementIsNotElementType().ToElements()
 
+list_levels_object = sorted(list_levels_object, key=lambda lvl: lvl.Elevation)
+
 # ==== Obtenemos el punto base del proyecto ====
 fec_basepoint = FilteredElementCollector(doc)
 survey_object = fec_basepoint.OfCategory(BuiltInCategory.OST_ProjectBasePoint).WhereElementIsNotElementType().FirstElement()

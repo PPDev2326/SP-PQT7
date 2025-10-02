@@ -209,7 +209,7 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
                 continue
             
             level_param_value = get_param_value(getParameter(elem, "S&P_NIVEL DE ELEMENTO"))
-            if level_param_value in ["TECHO", "Techo", "techo"]:
+            if level_param_value in ["TECHO", "Techo", "techo", "Cubierta", "CUBIERTA", "cubierta"]:
                 level = "RF"
             else:
                 level = divide_string(level_param_value, 1)

@@ -111,7 +111,7 @@ with revit.Transaction("Transfiere datos a Parametros COBieSpace"):
             categoria = get_formatted_string(value_cl_number, value_cl_description)
             room_tag = find_mapped_number(name_full)
 
-            height = GetParameterAPI(elemento, BuiltInParameter.ROOM_HEIGHT)
+            height = GetParameterAPI(elemento, BuiltInParameter.ROOM_UPPER_OFFSET)
             area = GetParameterAPI(elemento, BuiltInParameter.ROOM_AREA)
 
             height_val = get_param_value(height, 0)

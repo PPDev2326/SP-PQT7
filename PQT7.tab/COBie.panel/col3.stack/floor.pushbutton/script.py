@@ -75,6 +75,8 @@ param_information_value = get_param_value(getParameter(information_object, "Site
 processed_levels = []
 skipped_levels = []
 
+last_elevation = None  # Para calcular diferencias de altura
+
 # ==== Abrimos la transaction para iniciar con los cambios ====
 with revit.Transaction("Parametros COBie Floor"):
 
@@ -89,6 +91,7 @@ with revit.Transaction("Parametros COBie Floor"):
             level_name = level.Name
             elevation = level.Elevation if isinstance(level, Level) else 0.0
 
+            # Determinar categoría
             if "Sitio" in param_information_value:
                 category_value = "Site"
             elif "nivel" in level_name.lower() or "piso" in level_name.lower():
@@ -98,12 +101,21 @@ with revit.Transaction("Parametros COBie Floor"):
             else:
                 category_value = "Sin categoria"
 
+            # Calcular altura (Height)
+            if last_elevation is None:
+                floor_height = elevation  # Primer nivel: su elevación respecto al base
+            else:
+                floor_height = elevation - last_elevation  # Diferencia con el nivel anterior
+
+            # Guardar elevación actual como referencia
+            last_elevation = elevation
+
             parameters= {
                 "COBie.Floor.Name": level_name,
                 "COBie.Floor.Category": category_value,
                 "COBie.Floor.Description": "{}-{} (NPT:{})".format(level_name, param_zoning_value, elevation),
                 "COBie.Floor.Elevation": param_elevation_value + elevation,
-                "COBie.Floor.Height": elevation
+                "COBie.Floor.Height": floor_height
             }
             parameters.update(parameters_static)
             
@@ -112,7 +124,7 @@ with revit.Transaction("Parametros COBie Floor"):
                 if param and not param.IsReadOnly:
                     SetParameter(param, value)
 
-            processed_levels.append([level.Id.IntegerValue, level_name, category_value])
+            processed_levels.append([level.Id.IntegerValue, level_name, category_value, round(floor_height, 2)])
         else:
             skipped_levels.append(level.Name)
 
@@ -121,8 +133,8 @@ if processed_levels:
     output.print_md("## ✅ Procesamiento COBie Floor completado")
     output.print_md("**Niveles procesados:** {0}".format(len(processed_levels)))
 
-    for level_id, level_name, category in processed_levels:
-        output.print_md("- **{0}** | {1} | {2}".format(level_id, level_name, category))
+    for level_id, level_name, category, height in processed_levels:
+        output.print_md("- **{0}** | {1} | {2} | Altura: {3} m".format(level_id, level_name, category, height))
 
 if skipped_levels:
     output.print_md("### ⚠️ Niveles ignorados (no son plantas de edificación):")

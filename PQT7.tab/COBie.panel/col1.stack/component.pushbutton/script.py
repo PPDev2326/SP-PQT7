@@ -262,6 +262,7 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
                 )
             
             # ==== CONVERSION DE FECHA DEL EXCEL ====
+            data_row = None
             if code_elem in dict_codigos:
                 data_row = dict_codigos[code_elem]
                 
@@ -294,7 +295,7 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
                                 errores.append("Elemento {}: Error en fecha - {}".format(id_elem, str(e)))
 
             # ==== Description desde Excel ====
-            if "COBie.Component.Description" in data_row:
+            if data_row and "COBie.Component.Description" in data_row:
                 desc_excel = data_row["COBie.Component.Description"]
                 if desc_excel and str(desc_excel).strip().lower() not in ("", "n/a"):
                     param_desc = getParameter(elem, "COBie.Component.Description")

@@ -92,10 +92,10 @@ with revit.Transaction("Parametros COBie Floor"):
                 category_value = "Site"
             
             else:
-                if "nivel" in level_name.lower():
+                if "nivel" in level_name.lower() or "piso" in level_name.lower():
                     category_value = "Floor"
                 
-                elif "techo" in level_name.lower():
+                elif "techo" in level_name.lower() or "cobertura" in level_name.lower():
                     category_value = "Roof"
             
             parameters= {

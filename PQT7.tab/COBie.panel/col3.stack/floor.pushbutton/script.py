@@ -8,6 +8,25 @@ from pyrevit import script, revit, forms
 from Extensions._RevitAPI import get_param_value, GetParameterAPI, getParameter, SetParameter
 from DBRepositories.SchoolRepository import ColegiosRepository
 
+# ==== Creacion de metodos ====
+def divide_string(text, idx, character_divider=None, compare=None, value_default=None):
+    """
+    Divide un string en partes usando un separador y devuelve el elemento en la posición idx.
+    Si el texto completo coincide con 'compare', devuelve 'value_default'.
+    """
+    if not text:
+        return ""
+    
+    # Verificar coincidencia antes de dividir
+    if compare and text.strip().lower() == compare.lower():
+        return value_default
+    
+    parts = text.split(character_divider) if character_divider else text.split()
+    if idx < 0 or idx >= len(parts):
+        return ""
+    
+    return parts[idx]
+
 # ==== obtenemos el documento y el uidocument del modelo activo ====
 doc = revit.doc
 uidoc = revit.uidoc
@@ -26,20 +45,12 @@ logger = script.get_logger()
 CREATED_ON = "2024-12-12T13:29:49"
 
 # ==== Variables ====
-floor_category = {
-    "Floor": "NIVEL", 
-    "Roof": ["Techo", "Cobertura"], 
-    "Site": "Sitio"
-}
+category_value = "Sin categoria"
 
 # ==== Inicializamos un diccionario con los parametros a utilizar como claves
 parameters_static = {
             "COBie.CreatedBy": created_by,
             "COBie.CreatedOn": CREATED_ON,
-            "COBie.Floor.Category": "",
-            "COBie.Floor.Description": "",
-            "COBie.Floor.Elevation": "",
-            "COBie.Floor.Height": ""
         }
 
 # ==== Log para debug ====
@@ -55,9 +66,10 @@ survey_object = fec_basepoint.OfCategory(BuiltInCategory.OST_ProjectBasePoint).W
 ob_param_elevation = GetParameterAPI(survey_object, BuiltInParameter.BASEPOINT_ELEVATION_PARAM)
 param_elevation_value = get_param_value(ob_param_elevation)
 
-print(param_elevation_value)
-
-list_level_name = []
+# ==== Obtenemos el project information ====
+fec_information = FilteredElementCollector(doc)
+information_object = fec_information.OfCategory(BuiltInCategory.OST_ProjectInformation).WhereElementIsNotElementType().FirstElement()
+param_information_value = get_param_value(getParameter(information_object, "SiteObjectType"))
 
 # ==== Abrimos la transaction para iniciar con los cambios ====
 with revit.Transaction("Parametros COBie Floor"):
@@ -75,18 +87,26 @@ with revit.Transaction("Parametros COBie Floor"):
             level_name = level.Name
             if isinstance(level, Level):
                 elevation = level.Elevation
-            list_level_name.append(level_name)
             
-            if level_name in floor_category:
-                floot_category_value = floor_category.get()
+            if "Sitio" in param_information_value:
+                category_value = "Site"
+            
+            else:
+                if "nivel" in level_name.lower():
+                    category_value = "Floor"
+                
+                elif "techo" in level_name.lower():
+                    category_value = "Roof"
             
             parameters= {
                 "COBie.Floor.Name": level_name,
-                "COBie.Floor.Category": "",
+                "COBie.Floor.Category": category_value,
                 "COBie.Floor.Description": "{}-{} (NPT:{})".format(level_name, param_zoning_value, elevation),
                 "COBie.Floor.Elevation": param_elevation_value + elevation,
-                "COBie.Floor.Height": ""
+                "COBie.Floor.Height": elevation
             }
+            
+            parameters.update(parameters_static)
             
             for parameter, value in parameters.items():
                 param = getParameter(level, parameter)

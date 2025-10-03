@@ -10,7 +10,6 @@ from Extensions._utils import (
     obtener_mapeo_nombres_categorias,
     obtener_elementos_de_categorias,
     obtener_habitaciones_y_espacios,
-    obtener_habitaciones_de_vinculos_seleccionados,
     get_room_name,
     puntos_representativos,
     is_point_inside,
@@ -40,26 +39,104 @@ def get_room_number(room):
     return ""
 
 
-def obtener_dos_rooms_mas_cercanos(habitaciones, punto):
+def obtener_habitaciones_de_vinculos_transformadas(documento, nombres_vinculos):
+    """
+    Obtiene habitaciones de vínculos seleccionados y las transforma al sistema
+    de coordenadas del documento actual.
+    Retorna una lista de tuplas (room, transform) para usar en cálculos.
+    """
+    from Autodesk.Revit.DB import BuiltInCategory
+    
+    links = FilteredElementCollector(documento).OfClass(RevitLinkInstance).ToElements()
+    links_dict = {l.Name: l for l in links if l.GetLinkDocument() is not None}
+    
+    habitaciones_transformadas = []
+    
+    for nombre_vinculo in nombres_vinculos:
+        if nombre_vinculo not in links_dict:
+            continue
+        
+        link_instance = links_dict[nombre_vinculo]
+        link_doc = link_instance.GetLinkDocument()
+        transform = link_instance.GetTotalTransform()
+        
+        if not link_doc:
+            continue
+        
+        try:
+            # Intentar primero con categoría por nombre
+            rooms = FilteredElementCollector(link_doc).OfCategory(
+                link_doc.Settings.Categories.get_Item("Rooms")
+            ).WhereElementIsNotElementType().ToElements()
+        except:
+            # Si falla, usar BuiltInCategory
+            try:
+                rooms = FilteredElementCollector(link_doc).OfCategory(
+                    BuiltInCategory.OST_Rooms
+                ).WhereElementIsNotElementType().ToElements()
+            except:
+                continue
+        
+        # Filtrar rooms con área > 0 y agregar con su transform
+        for room in rooms:
+            try:
+                if room.Area > 0:
+                    habitaciones_transformadas.append((room, transform))
+            except:
+                continue
+    
+    return habitaciones_transformadas
+
+
+def obtener_punto_transformado(room, transform):
+    """Obtiene el punto de ubicación de un room transformado al documento actual."""
+    try:
+        location = room.Location
+        if location:
+            room_point = location.Point
+            # Transformar el punto al sistema de coordenadas del documento actual
+            return transform.OfPoint(room_point)
+    except:
+        pass
+    return None
+
+
+def is_point_inside_transformed(room, transform, punto):
+    """
+    Verifica si un punto está dentro de un room considerando la transformación.
+    Transforma el punto del documento actual al sistema del vínculo para la verificación.
+    """
+    try:
+        # Invertir la transformación para llevar el punto al sistema del vínculo
+        inverse_transform = transform.Inverse
+        punto_en_vinculo = inverse_transform.OfPoint(punto)
+        
+        # Ahora usar is_point_inside con el punto transformado
+        return is_point_inside(room, punto_en_vinculo)
+    except:
+        return False
+
+
+def obtener_dos_rooms_mas_cercanos(habitaciones_transformadas, punto):
     """
     Obtiene las 2 habitaciones más cercanas a un punto.
-    Retorna una lista de tuplas (distancia, room) ordenadas por distancia.
+    habitaciones_transformadas: lista de tuplas (room, transform)
+    Retorna una lista de tuplas (distancia, room, transform) ordenadas por distancia.
     """
     distancias = []
     
-    for room in habitaciones:
+    for room, transform in habitaciones_transformadas:
         try:
-            location = room.Location
-            if not location:
+            punto_room = obtener_punto_transformado(room, transform)
+            if not punto_room:
                 continue
             
-            room_point = location.Point
-            dx = room_point.X - punto.X
-            dy = room_point.Y - punto.Y
-            dz = room_point.Z - punto.Z
+            dx = punto_room.X - punto.X
+            dy = punto_room.Y - punto.Y
+            dz = punto_room.Z - punto.Z
             distancia = (dx*dx + dy*dy + dz*dz) ** 0.5
             
-            distancias.append((distancia, room))
+            distancias.append((distancia, room, transform))
         except:
             continue
     
@@ -83,7 +160,7 @@ def extraer_numero_para_ordenar(numero_str):
     return float('inf')  # Si no hay número, va al final
 
 
-def procesar_puerta_ventana(elemento, habitaciones, failed_list):
+def procesar_puerta_ventana(elemento, habitaciones_transformadas, failed_list):
     try:
         rooms_unicos = []
         ids_usados = set()
@@ -96,14 +173,10 @@ def procesar_puerta_ventana(elemento, habitaciones, failed_list):
         except:
             pass
         
-        # Filtrar habitaciones del mismo nivel si es posible
-        habitaciones_filtradas = habitaciones
-        if elemento_nivel_id and elemento_nivel_id.IntegerValue != -1:
-            habs_mismo_nivel = [h for h in habitaciones if h.LevelId == elemento_nivel_id]
-            if habs_mismo_nivel:
-                habitaciones_filtradas = habs_mismo_nivel
+        # NOTA: Para vínculos, el filtrado por nivel es complejo porque los niveles
+        # están en documentos diferentes. Por ahora, trabajamos con todas las habitaciones.
         
-        # PASO 1: Intentar FromRoom y ToRoom
+        # PASO 1: Intentar FromRoom y ToRoom (solo funciona si el elemento está en el doc actual)
         from_room = None
         to_room = None
         try:
@@ -112,53 +185,48 @@ def procesar_puerta_ventana(elemento, habitaciones, failed_list):
         except:
             pass
 
-        # Agregar FromRoom si es válido y del mismo nivel
+        # Agregar FromRoom si es válido
         if from_room:
-            # Verificar que sea del mismo nivel
-            if not elemento_nivel_id or from_room.LevelId == elemento_nivel_id:
-                nombre = get_room_name(from_room)
-                numero = get_room_number(from_room)
-                if nombre and numero:
-                    nombre_upper = nombre.upper()
-                    rooms_unicos.append((numero, nombre_upper, from_room.Id))
-                    ids_usados.add(from_room.Id.IntegerValue)
-                    numeros_usados.add(numero)
+            nombre = get_room_name(from_room)
+            numero = get_room_number(from_room)
+            if nombre and numero:
+                nombre_upper = nombre.upper()
+                rooms_unicos.append((numero, nombre_upper, from_room.Id))
+                ids_usados.add(from_room.Id.IntegerValue)
+                numeros_usados.add(numero)
 
-        # Agregar ToRoom si es válido, diferente y del mismo nivel
+        # Agregar ToRoom si es válido y diferente
         if to_room and to_room.Id.IntegerValue not in ids_usados:
-            # Verificar que sea del mismo nivel
-            if not elemento_nivel_id or to_room.LevelId == elemento_nivel_id:
-                nombre = get_room_name(to_room)
-                numero = get_room_number(to_room)
-                if nombre and numero:
-                    nombre_upper = nombre.upper()
-                    # Solo agregar si el NÚMERO es diferente
-                    if numero not in numeros_usados:
-                        rooms_unicos.append((numero, nombre_upper, to_room.Id))
-                        ids_usados.add(to_room.Id.IntegerValue)
-                        numeros_usados.add(numero)
+            nombre = get_room_name(to_room)
+            numero = get_room_number(to_room)
+            if nombre and numero:
+                nombre_upper = nombre.upper()
+                if numero not in numeros_usados:
+                    rooms_unicos.append((numero, nombre_upper, to_room.Id))
+                    ids_usados.add(to_room.Id.IntegerValue)
+                    numeros_usados.add(numero)
 
         # PASO 2: Si tenemos menos de 2 ambientes, buscar por proximidad
         if len(rooms_unicos) < 2:
             pts = puntos_representativos(elemento) or []
             
-            # Obtener TODOS los rooms cercanos de todos los puntos (del mismo nivel)
+            # Obtener TODOS los rooms cercanos de todos los puntos
             candidatos = []
             for punto in pts:
                 if not punto:
                     continue
                     
-                cercanos = obtener_dos_rooms_mas_cercanos(habitaciones_filtradas, punto)
-                for distancia, room in cercanos:
+                cercanos = obtener_dos_rooms_mas_cercanos(habitaciones_transformadas, punto)
+                for distancia, room, transform in cercanos:
                     # Solo agregar si no está en candidatos ya
-                    if room.Id.IntegerValue not in [r.Id.IntegerValue for d, r in candidatos]:
-                        candidatos.append((distancia, room))
+                    if room.Id.IntegerValue not in [r.Id.IntegerValue for d, r, t in candidatos]:
+                        candidatos.append((distancia, room, transform))
             
             # Ordenar candidatos por distancia
             candidatos.sort(key=lambda x: x[0])
             
             # Intentar agregar hasta tener 2 rooms diferentes
-            for distancia, room in candidatos:
+            for distancia, room, transform in candidatos:
                 if len(rooms_unicos) >= 2:
                     break
                 
@@ -312,31 +380,49 @@ def asignar_ambiente_puerta_ventana(elemento, nombre_combinado, valor_cobie, fai
     return exito
 
 
-def procesar_elemento_fase1(elemento, habitaciones, failed_list):
+def procesar_elemento_fase1(elemento, habitaciones_transformadas, failed_list):
     """Fase 1: Busca si algún punto del elemento está dentro de una habitación."""
     pts = puntos_representativos(elemento) or []
     for p in pts:
         if not p:
             continue
         try:
-            room_hit = next((r for r in habitaciones if is_point_inside(r, p)), None)
-            if room_hit:
-                nombre = get_room_name(room_hit)
-                numero = get_room_number(room_hit)
-                return asignar_ambiente(elemento, nombre, numero, failed_list)
+            # Buscar en habitaciones transformadas
+            for room, transform in habitaciones_transformadas:
+                if is_point_inside_transformed(room, transform, p):
+                    nombre = get_room_name(room)
+                    numero = get_room_number(room)
+                    return asignar_ambiente(elemento, nombre, numero, failed_list)
         except Exception:
             continue
     return False
 
 
-def procesar_elemento_fase2(elemento, habitaciones, failed_list):
+def procesar_elemento_fase2(elemento, habitaciones_transformadas, failed_list):
     """Fase 2: Busca la habitación más cercana dentro de la tolerancia."""
     pts = puntos_representativos(elemento) or []
     for p in pts:
         if not p:
             continue
         try:
-            room_cercana = obtener_room_mas_cercano(habitaciones, p, tolerancia=TOLERANCIA_PIES)
+            # Buscar el room más cercano con transformación
+            distancia_minima = float('inf')
+            room_cercana = None
+            
+            for room, transform in habitaciones_transformadas:
+                punto_room = obtener_punto_transformado(room, transform)
+                if not punto_room:
+                    continue
+                
+                dx = punto_room.X - p.X
+                dy = punto_room.Y - p.Y
+                dz = punto_room.Z - p.Z
+                distancia = (dx*dx + dy*dy + dz*dz) ** 0.5
+                
+                if distancia < distancia_minima and distancia <= TOLERANCIA_PIES:
+                    distancia_minima = distancia
+                    room_cercana = room
+            
             if room_cercana:
                 nombre = get_room_name(room_cercana)
                 numero = get_room_number(room_cercana)
@@ -352,7 +438,9 @@ def obtener_habitaciones(documento):
     
     if habs:
         output.print_md("### ✅ Habitaciones encontradas en el modelo actual: {}".format(len(habs)))
-        return habs
+        # Convertir a formato (room, transform_identidad) para compatibilidad
+        from Autodesk.Revit.DB import Transform
+        return [(h, Transform.Identity) for h in habs]
     
     # Si no hay habitaciones en el modelo actual, buscar en vínculos
     output.print_md("### ⚠️ No se encontraron habitaciones en el modelo actual")
@@ -381,22 +469,22 @@ def obtener_habitaciones(documento):
         )
     
     # Preparar lista de vínculos con información
+    from Autodesk.Revit.DB import BuiltInCategory
     nom_links_info = []
     for link in links_cargados:
         link_doc = link.GetLinkDocument()
         if link_doc:
             try:
-                # CORRECCIÓN: Usar las categorías del documento del vínculo
+                # Intentar con categoría por nombre
                 link_rooms = FilteredElementCollector(link_doc).OfCategory(
-                    link_doc.Settings.Categories.get_Item("Rooms")  # ✅ Usar link_doc
+                    link_doc.Settings.Categories.get_Item("Rooms")
                 ).WhereElementIsNotElementType().ToElements()
                 
                 num_rooms = len([r for r in link_rooms if r.Area > 0])
                 nom_links_info.append("{} ({} habitaciones)".format(link.Name, num_rooms))
-            except Exception as e:
-                # Si no tiene categoría Rooms, intentar con BuiltInCategory
+            except:
+                # Si falla, usar BuiltInCategory
                 try:
-                    from Autodesk.Revit.DB import BuiltInCategory
                     link_rooms = FilteredElementCollector(link_doc).OfCategory(
                         BuiltInCategory.OST_Rooms
                     ).WhereElementIsNotElementType().ToElements()
@@ -404,7 +492,6 @@ def obtener_habitaciones(documento):
                     num_rooms = len([r for r in link_rooms if r.Area > 0])
                     nom_links_info.append("{} ({} habitaciones)".format(link.Name, num_rooms))
                 except:
-                    # Si falla, agregar con 0 habitaciones
                     nom_links_info.append("{} (0 habitaciones)".format(link.Name))
     
     if not nom_links_info:
@@ -428,7 +515,7 @@ def obtener_habitaciones(documento):
     # Extraer nombres originales (sin el conteo)
     nombres_originales = [s.split(" (")[0] for s in sel_links]
     
-    habs = obtener_habitaciones_de_vinculos_seleccionados(documento, nombres_originales)
+    habs = obtener_habitaciones_de_vinculos_transformadas(documento, nombres_originales)
     
     if not habs:
         forms.alert(
@@ -508,7 +595,7 @@ procesamiento_especial = tiene_puertas or tiene_ventanas or tiene_genericos
 if procesamiento_especial:
     output.print_md("### ℹ️ Se aplicará procesamiento especial para puertas/ventanas/modelos genéricos (2 ambientes)")
 
-# 3) Obtener habitaciones
+# 3) Obtener habitaciones (ahora como lista de tuplas (room, transform))
 habs = obtener_habitaciones(doc)
 output.print_md("### Habitaciones disponibles: {}".format(len(habs)))
 

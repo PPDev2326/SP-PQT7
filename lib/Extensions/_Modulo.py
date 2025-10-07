@@ -12,7 +12,7 @@ patron = re.compile(r"""
 (-CSSP001)                                       # Parte fija
 -(000|41[5-9]|42[0-5]|43[89]|44[078]|45[0-3]|459) # Rango intermedio
 -ZZ-MD-(AR|ST|PL|EM|EE|ME|DT)                    # Especialidad
--(0021\d{2}|000001)$                             # Número final
+-(0021\d{2}|00000[1-5])$                             # Número final
 """, re.VERBOSE)
 
 def obtener_nombre_archivo():

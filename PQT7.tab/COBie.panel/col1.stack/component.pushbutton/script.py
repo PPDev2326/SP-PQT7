@@ -60,58 +60,25 @@ columns_headers = [
     "CODIGO"
 ]
 
-def find_data_by_code(data_list, codigo_elemento):
-    """
-    Busca los datos del Excel que coincidan con el código del elemento.
-    
-    :param data_list: Lista de diccionarios con los datos del Excel.
-    :type data_list: list
-    :param codigo_elemento: Código del elemento de Revit.
-    :type codigo_elemento: str
-    :return: Diccionario con los datos encontrados o None si no encuentra.
-    :rtype: dict or None
-    """
-    if not data_list:
-        return None
-    
-    for row_data in data_list:
-        codigo_excel = row_data.get("CODIGO")
-        if codigo_excel and str(codigo_excel).strip() == str(codigo_elemento).strip():
-            return row_data
-    
-    return None
-
 columns_space = [
     "COBie.Space.Name",
     "COBie.Space.RoomTag",
 ]
 
-def get_roomtag_from_cobie_space(doc, elem):
-    excel_space = Excel()
-    space_rows = excel_space.read_excel('ESTANDAR COBie SPACE ')
-    if not space_rows:
-        forms.alert("No se encontró hoja de Excel 'ESTANDAR COBie SPACE'.", exitscript=True)
+def get_roomtag_from_cobie_space(elem, dict_space_data):
+    """
+    Obtiene el RoomTag desde los datos pre-cargados de Space.
     
-    headers = excel_space.get_headers(space_rows, 2)
-    headers_required = excel_space.headers_required(headers, columns_space)
-    data = excel_space.get_data_by_headers_required(space_rows, headers_required, 3)
-    
-    if not data:
-        forms.alert("No se pudieron cargar los datos del Excel.", exitscript=True)
-    
-    dict_code = {}
-    for row in data:
-        code = row.get("COBie.Space.Name")
-        if code:
-            dict_code[code] = row
-    
+    :param elem: Elemento de Revit
+    :param dict_space_data: Diccionario pre-cargado con los datos de Space
+    :return: RoomTag o "0"
+    """
     cobie_space_value = get_param_value(getParameter(elem, "COBie.Space.Name"))
-    param_tag_object = getParameter(elem, "COBie.Space.RoomTag")
     
-    if not param_tag_object or not cobie_space_value:
-        return None
+    if not cobie_space_value:
+        return "0"
     
-    cobie_space_results = dict_code.get(cobie_space_value, {})
+    cobie_space_results = dict_space_data.get(cobie_space_value, {})
     room_tag = cobie_space_results.get("COBie.Space.RoomTag", "0")
     
     return room_tag
@@ -154,12 +121,35 @@ specialty = None
 if specialty_object:
     specialty = specialty_object.name
 
-# ==== Obtenemos la hoja excel de acuerdo a la especialidad ====
-data_list = None
-
 print("\n" + "="*70)
 print("PROCESAMIENTO COBie COMPONENT - {}".format(specialty))
 print("="*70)
+
+# ==== CARGAR DATOS DE SPACE UNA SOLA VEZ ====
+print("\n[INFO] Cargando datos de COBie Space...")
+excel_space = Excel()
+space_rows = excel_space.read_excel('ESTANDAR COBie SPACE ')
+if not space_rows:
+    forms.alert("No se encontró hoja de Excel 'ESTANDAR COBie SPACE'.", exitscript=True)
+
+headers_space = excel_space.get_headers(space_rows, 2)
+headers_space_required = excel_space.headers_required(headers_space, columns_space)
+data_space = excel_space.get_data_by_headers_required(space_rows, headers_space_required, 3)
+
+if not data_space:
+    forms.alert("No se pudieron cargar los datos del Excel Space.", exitscript=True)
+
+# Crear diccionario de Space una sola vez
+dict_space_data = {}
+for row in data_space:
+    code = row.get("COBie.Space.Name")
+    if code:
+        dict_space_data[code] = row
+
+print("[OK] Datos de Space cargados: {} registros".format(len(dict_space_data)))
+
+# ==== Obtenemos la hoja excel de acuerdo a la especialidad ====
+data_list = None
 
 if specialty == "ARQUITECTURA":
     excel_instance = Excel()
@@ -270,8 +260,8 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
             zonification_value = get_param_value(getParameter(elem, "S&P_ZONIFICACION"))
             mbr_value = divide_string(zonification_value, 1, compare="sitio", value_default="000")
             
-            # ==== Obtenemos el ambiente en el component space
-            tag_number = get_roomtag_from_cobie_space(doc, elem)
+            # ==== Obtenemos el ambiente usando los datos pre-cargados ====
+            tag_number = get_roomtag_from_cobie_space(elem, dict_space_data)
 
             if tag_number and "," in tag_number:
                 tag_number_separate = divide_string(tag_number, 0, ",")
@@ -355,13 +345,12 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
             parametros = {
                 "COBie.Component.Name": "{} : {} : {} : {}".format(name_category, family_name, name_type, id_elem),
                 "COBie.CreatedOn": CREATED_ON,
-                # "COBie.Component.Space": ambiente,
                 "COBie.CreatedBy": created_by,
                 "COBie.Component.SerialNumber": serial_number_value,
                 "COBie.Component.WarrantyStartDate": warranty_start_date,
                 "COBie.Component.TagNumber": tag_number,
                 "COBie.Component.BarCode": "{}{}".format(mbr_value, id_elem),
-                "COBie.Component.AssetIdentifier": "{}-ZZ-{}-{}-{}-{}".format(mbr_value, level, tag_number,pr_number,mbr_value+str(id_elem) )
+                "COBie.Component.AssetIdentifier": "{}-ZZ-{}-{}-{}-{}".format(mbr_value, level, tag_number, pr_number, mbr_value+str(id_elem))
             }
 
             for param_name, value in parametros.items():

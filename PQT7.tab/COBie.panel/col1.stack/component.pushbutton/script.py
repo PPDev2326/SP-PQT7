@@ -99,26 +99,23 @@ def get_roomtag_from_cobie_space(doc, elem):
     if not data:
         forms.alert("No se pudieron cargar los datos del Excel.", exitscript=True)
     
-    # ==== Construir diccionario por código ====
     dict_code = {}
     for row in data:
-        code = row["COBie.Space.Name"]
+        code = row.get("COBie.Space.Name")
         if code:
             dict_code[code] = row
     
-    # === Obtener elemento y parámetros ===
     cobie_space_value = get_param_value(getParameter(elem, "COBie.Space.Name"))
-    param_tag_object = getParameter(element_object, "COBie.Space.RoomTag")
+    param_tag_object = getParameter(elem, "COBie.Space.RoomTag")
     
-    if not param_tag_object:
+    if not param_tag_object or not cobie_space_value:
         return None
     
-    # ==== Buscar en el Excel ====
     cobie_space_results = dict_code.get(cobie_space_value, {})
     room_tag = cobie_space_results.get("COBie.Space.RoomTag", "0")
     
-    # === Asignar parámetro y retornar valor ===
     return room_tag
+
 
 # ==== Obtener el documento activo ====
 doc = revit.doc
@@ -275,11 +272,13 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
             
             # ==== Obtenemos el ambiente en el component space
             tag_number = get_roomtag_from_cobie_space(doc, elem)
-            if "," in tag_number:
+
+            if tag_number and "," in tag_number:
                 tag_number_separate = divide_string(tag_number, 0, ",")
                 tag_number = find_mapped_number(tag_number_separate)
-            else:
-                tag_number
+            elif not tag_number:
+                tag_number = "0"
+
             
             code_elem = get_param_value(getParameter(elem, "S&P_CODIGO DE ELEMENTO"))
             if code_elem not in (None, "", "n/a"):

@@ -86,7 +86,7 @@ columns_space = [
     "COBie.Space.RoomTag",
 ]
 
-def get_roomtag_from_cobie_space(doc, ref):
+def get_roomtag_from_cobie_space(doc, elem):
     excel_space = Excel()
     space_rows = excel_space.read_excel('ESTANDAR COBie SPACE ')
     if not space_rows:
@@ -107,8 +107,7 @@ def get_roomtag_from_cobie_space(doc, ref):
             dict_code[code] = row
     
     # === Obtener elemento y parámetros ===
-    element_object = doc.GetElement(ref)
-    cobie_space_value = get_param_value(getParameter(element_object, "COBie.Space.Name"))
+    cobie_space_value = get_param_value(getParameter(elem, "COBie.Space.Name"))
     param_tag_object = getParameter(element_object, "COBie.Space.RoomTag")
     
     if not param_tag_object:

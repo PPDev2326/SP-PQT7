@@ -65,20 +65,17 @@ columns_space = [
     "COBie.Space.RoomTag",
 ]
 
-def get_roomtag_from_cobie_space(elem, dict_space_data):
+def get_roomtag_from_cobie_space(doc, elem, space_data_dict):
     """
-    Obtiene el RoomTag desde los datos pre-cargados de Space.
-    
-    :param elem: Elemento de Revit
-    :param dict_space_data: Diccionario pre-cargado con los datos de Space
-    :return: RoomTag o "0"
+    Obtiene el RoomTag desde los datos de SPACE ya cargados.
     """
     cobie_space_value = get_param_value(getParameter(elem, "COBie.Space.Name"))
+    param_tag_object = getParameter(elem, "COBie.Space.RoomTag")
     
-    if not cobie_space_value:
-        return "0"
+    if not param_tag_object or not cobie_space_value:
+        return None
     
-    cobie_space_results = dict_space_data.get(cobie_space_value, {})
+    cobie_space_results = space_data_dict.get(cobie_space_value, {})
     room_tag = cobie_space_results.get("COBie.Space.RoomTag", "0")
     
     return room_tag
@@ -125,80 +122,59 @@ print("\n" + "="*70)
 print("PROCESAMIENTO COBie COMPONENT - {}".format(specialty))
 print("="*70)
 
-# ==== CARGAR DATOS DE SPACE UNA SOLA VEZ ====
-print("\n[INFO] Cargando datos de COBie Space...")
-excel_space = Excel()
-space_rows = excel_space.read_excel('ESTANDAR COBie SPACE ')
-if not space_rows:
-    forms.alert("No se encontró hoja de Excel 'ESTANDAR COBie SPACE'.", exitscript=True)
+# ==== CARGAR EXCEL UNA SOLA VEZ ====
+excel_instance = Excel()
 
-headers_space = excel_space.get_headers(space_rows, 2)
-headers_space_required = excel_space.headers_required(headers_space, columns_space)
-data_space = excel_space.get_data_by_headers_required(space_rows, headers_space_required, 3)
+# Determinar nombre de hoja según especialidad
+specialty_to_sheet = {
+    "ARQUITECTURA": "ESTANDAR COBIE  -AR",
+    "INSTALACIONES SANITARIAS": "ESTANDAR COBIE  - PL",
+    "INSTALACIONES ELECTRICAS": "ESTANDAR COBIE  -EE",
+    "COMUNICACIONES": "ESTANDAR COBIE  - IICC",
+    "INSTALACIONES MECANICAS": "ESTANDAR COBIE  - ME"
+}
 
-if not data_space:
-    forms.alert("No se pudieron cargar los datos del Excel Space.", exitscript=True)
-
-# Crear diccionario de Space una sola vez
-dict_space_data = {}
-for row in data_space:
-    code = row.get("COBie.Space.Name")
-    if code:
-        dict_space_data[code] = row
-
-print("[OK] Datos de Space cargados: {} registros".format(len(dict_space_data)))
-
-# ==== Obtenemos la hoja excel de acuerdo a la especialidad ====
-data_list = None
-
-if specialty == "ARQUITECTURA":
-    excel_instance = Excel()
-    excel_rows = excel_instance.read_excel('ESTANDAR COBIE  -AR')
-    headers = excel_instance.get_headers(excel_rows, 2)
-    headers_required = excel_instance.headers_required(headers, columns_headers)
-    data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
-
-elif specialty == "INSTALACIONES SANITARIAS":
-    excel_instance = Excel()
-    excel_rows = excel_instance.read_excel('ESTANDAR COBIE  - PL')
-    headers = excel_instance.get_headers(excel_rows, 2)
-    headers_required = excel_instance.headers_required(headers, columns_headers)
-    data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
-
-elif specialty == "INSTALACIONES ELECTRICAS":
-    excel_instance = Excel()
-    excel_rows = excel_instance.read_excel('ESTANDAR COBIE  -EE')
-    headers = excel_instance.get_headers(excel_rows, 2)
-    headers_required = excel_instance.headers_required(headers, columns_headers)
-    data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
-
-elif specialty == "COMUNICACIONES":
-    excel_instance = Excel()
-    excel_rows = excel_instance.read_excel('ESTANDAR COBIE  - IICC')
-    headers = excel_instance.get_headers(excel_rows, 2)
-    headers_required = excel_instance.headers_required(headers, columns_headers)
-    data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
-
-elif specialty == "INSTALACIONES MECANICAS":
-    excel_instance = Excel()
-    excel_rows = excel_instance.read_excel('ESTANDAR COBIE  - ME')
-    headers = excel_instance.get_headers(excel_rows, 2)
-    headers_required = excel_instance.headers_required(headers, columns_headers)
-    data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
-
-else:
+sheet_name = specialty_to_sheet.get(specialty)
+if not sheet_name:
     forms.alert("Especialidad '{}' no reconocida para cargar datos Excel.".format(specialty), exitscript=True)
+
+# Cargar datos de COMPONENT
+excel_rows = excel_instance.read_excel(sheet_name)
+headers = excel_instance.get_headers(excel_rows, 2)
+headers_required = excel_instance.headers_required(headers, columns_headers)
+data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
 
 if not data_list:
     forms.alert("No se pudieron cargar los datos del Excel.", exitscript=True)
 
 print("[OK] Excel cargado: {} registros disponibles".format(len(data_list)))
 
-# ==== Creamos nuevo diccionario que contendra el codigo y sus valores ====
+# Crear diccionario de códigos para COMPONENT
 dict_codigos = {}
 for row in data_list:
     code = row["CODIGO"]
     dict_codigos[code] = row
+
+# Cargar datos de SPACE (usando la misma instancia de Excel)
+space_rows = excel_instance.read_excel('ESTANDAR COBie SPACE ')
+if not space_rows:
+    forms.alert("No se encontró hoja de Excel 'ESTANDAR COBie SPACE'.", exitscript=True)
+
+space_headers = excel_instance.get_headers(space_rows, 2)
+space_headers_required = excel_instance.headers_required(space_headers, columns_space)
+space_data = excel_instance.get_data_by_headers_required(space_rows, space_headers_required, 3)
+
+if not space_data:
+    forms.alert("No se pudieron cargar los datos de SPACE del Excel.", exitscript=True)
+
+# Crear diccionario de SPACE
+dict_space = {}
+for row in space_data:
+    code = row.get("COBie.Space.Name")
+    if code:
+        dict_space[code] = row
+
+print("[OK] Datos de SPACE cargados: {} registros".format(len(dict_space)))
 
 # ==== Contadores para estadísticas ====
 count = 0
@@ -260,8 +236,8 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
             zonification_value = get_param_value(getParameter(elem, "S&P_ZONIFICACION"))
             mbr_value = divide_string(zonification_value, 1, compare="sitio", value_default="000")
             
-            # ==== Obtenemos el ambiente usando los datos pre-cargados ====
-            tag_number = get_roomtag_from_cobie_space(elem, dict_space_data)
+            # ==== Obtenemos el ambiente en el component space (usando datos precargados) ====
+            tag_number = get_roomtag_from_cobie_space(doc, elem, dict_space)
 
             if tag_number and "," in tag_number:
                 tag_number_separate = divide_string(tag_number, 0, ",")

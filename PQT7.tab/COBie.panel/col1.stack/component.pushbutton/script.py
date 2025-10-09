@@ -86,7 +86,7 @@ columns_space = [
     "COBie.Space.RoomTag",
 ]
 
-def get_cobie_space():
+def get_cobie_space(refs):
     excel_space = Excel()
     space_rows = excel_space.read_excel('ESTANDAR COBie SPACE ')
     headers = excel_space.get_headers(space_rows, 2)
@@ -101,9 +101,20 @@ def get_cobie_space():
         code = row["COBie.Space.Name"]
         dict_code[code] = row
     
-    print(dict_code)
-
-get_cobie_space()
+    print(data)
+    
+#     for ref in refs:
+#         element_object = doc.GetElement(ref)
+#         param_value = get_param_value(getParameter(element_object, "COBie.Space.Name"))
+#         param_object = getParameter(element_object, "COBie.Space.RoomTag")
+        
+#         if param_value and param_value in dict_code:
+#             cobie_space_results = dict_code[param_value]
+            
+#             for cobie_space in cobie_space_results:
+#                 room_tag_object = cobie_space[columns_space[1]] if columns_space[1] in cobie_space else "0"
+                
+#                 room_tag = SetParameter(param_object, room_tag)
 
 # # ==== Obtener el documento activo ====
 # doc = revit.doc

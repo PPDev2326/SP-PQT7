@@ -70,14 +70,29 @@ def get_roomtag_from_cobie_space(doc, elem, space_data_dict):
     Obtiene el RoomTag desde los datos de SPACE ya cargados.
     """
     cobie_space_value = get_param_value(getParameter(elem, "COBie.Space.Name"))
+    param_tag_object = getParameter(elem, "COBie.Space.RoomTag")
+    
+    if not param_tag_object:
+        print("  [DEBUG] Elemento sin parametro COBie.Space.RoomTag")
+        return "0"
     
     if not cobie_space_value:
-        return None
+        print("  [DEBUG] Elemento sin valor en COBie.Space.Name")
+        return "0"
     
-    cobie_space_results = space_data_dict.get(cobie_space_value, {})
-    room_tag = cobie_space_results.get("COBie.Space.RoomTag", "0")
+    # Normalizar el valor (quitar espacios y convertir a string)
+    cobie_space_value_clean = str(cobie_space_value).strip()
     
-    return room_tag
+    # Buscar en el diccionario
+    if cobie_space_value_clean in space_data_dict:
+        cobie_space_results = space_data_dict[cobie_space_value_clean]
+        room_tag = cobie_space_results.get("COBie.Space.RoomTag", "0")
+        print("  [DEBUG] COBie.Space.Name='{}' -> RoomTag='{}'".format(cobie_space_value_clean, room_tag))
+        return room_tag if room_tag else "0"
+    else:
+        print("  [DEBUG] No se encontro '{}' en diccionario SPACE".format(cobie_space_value_clean))
+        print("  [DEBUG] Claves disponibles en diccionario: {}".format(list(space_data_dict.keys())[:5]))
+        return "0"
 
 
 # ==== Obtener el documento activo ====
@@ -177,9 +192,12 @@ dict_space = {}
 for row in space_data:
     code = row.get("COBie.Space.Name")
     if code:
-        dict_space[code] = row
+        # Normalizar la clave (quitar espacios y convertir a string)
+        code_clean = str(code).strip()
+        dict_space[code_clean] = row
 
 print("[OK] Datos de SPACE cargados: {} registros disponibles".format(len(dict_space)))
+print("[DEBUG] Primeras 5 claves en dict_space: {}".format(list(dict_space.keys())[:5]))
 
 # ==== Contadores para estadísticas ====
 count = 0
@@ -244,10 +262,10 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
             # ==== Obtenemos el ambiente en el component space (usando datos precargados) ====
             tag_number = get_roomtag_from_cobie_space(doc, elem, dict_space)
 
-            if tag_number and "," in tag_number:
+            if tag_number and tag_number != "0" and "," in tag_number:
                 tag_number_separate = divide_string(tag_number, 0, ",")
                 tag_number = find_mapped_number(tag_number_separate)
-            elif not tag_number:
+            elif not tag_number or tag_number == "0":
                 tag_number = "0"
 
             

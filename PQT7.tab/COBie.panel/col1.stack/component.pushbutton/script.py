@@ -123,7 +123,7 @@ print("PROCESAMIENTO COBie COMPONENT - {}".format(specialty))
 print("="*70)
 
 # ==== CARGAR EXCEL UNA SOLA VEZ ====
-excel_instance = Excel()
+print("\n[INFO] Preparando carga de datos...")
 
 # Determinar nombre de hoja según especialidad
 specialty_to_sheet = {
@@ -138,7 +138,12 @@ sheet_name = specialty_to_sheet.get(specialty)
 if not sheet_name:
     forms.alert("Especialidad '{}' no reconocida para cargar datos Excel.".format(specialty), exitscript=True)
 
+# Crear instancia de Excel (esto pedirá el archivo UNA SOLA VEZ)
+excel_instance = Excel()
+
 # Cargar datos de COMPONENT
+print("[INFO] Seleccione el archivo Excel...")
+print("[INFO] Cargando hoja '{}'...".format(sheet_name))
 excel_rows = excel_instance.read_excel(sheet_name)
 headers = excel_instance.get_headers(excel_rows, 2)
 headers_required = excel_instance.headers_required(headers, columns_headers)
@@ -147,7 +152,7 @@ data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_requ
 if not data_list:
     forms.alert("No se pudieron cargar los datos del Excel.", exitscript=True)
 
-print("[OK] Excel cargado: {} registros disponibles".format(len(data_list)))
+print("[OK] Excel cargado: {} registros de COMPONENT disponibles".format(len(data_list)))
 
 # Crear diccionario de códigos para COMPONENT
 dict_codigos = {}
@@ -155,7 +160,8 @@ for row in data_list:
     code = row["CODIGO"]
     dict_codigos[code] = row
 
-# Cargar datos de SPACE (usando la misma instancia de Excel)
+# Cargar datos de SPACE (del mismo archivo Excel ya abierto - NO PEDIRÁ EL ARCHIVO DE NUEVO)
+print("[INFO] Cargando hoja 'ESTANDAR COBie SPACE' del mismo archivo...")
 space_rows = excel_instance.read_excel('ESTANDAR COBie SPACE ')
 if not space_rows:
     forms.alert("No se encontró hoja de Excel 'ESTANDAR COBie SPACE'.", exitscript=True)
@@ -174,7 +180,7 @@ for row in space_data:
     if code:
         dict_space[code] = row
 
-print("[OK] Datos de SPACE cargados: {} registros".format(len(dict_space)))
+print("[OK] Datos de SPACE cargados: {} registros disponibles".format(len(dict_space)))
 
 # ==== Contadores para estadísticas ====
 count = 0

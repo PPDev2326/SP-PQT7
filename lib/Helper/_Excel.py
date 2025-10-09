@@ -5,9 +5,14 @@ from pyrevit import forms, revit
 from pyrevit.interop import xl
 
 class Excel:
+    def __init__(self):
+        """Inicializa la clase Excel con ruta de archivo None."""
+        self.ruta_archivo = None
+    
     def read_excel(self, hoja, encabezados=False):
         """
-        Lee un archivo Excel.
+        Lee un archivo Excel. Si ya se seleccionó un archivo anteriormente,
+        usa ese mismo archivo para leer otras hojas.
 
         :param hoja: El nombre de la hoja de cálculo.
         :type hoja: str
@@ -16,15 +21,22 @@ class Excel:
         :return: Las filas del Excel.
         :rtype: list
         """
-        ruta = forms.pick_excel_file()
-        if not ruta:
-            forms.alert("No se seleccionó ningún archivo.", exitscript=True)
-            return []
+        # Solo pedir el archivo si no se ha seleccionado antes
+        if self.ruta_archivo is None:
+            self.ruta_archivo = forms.pick_excel_file()
+            if not self.ruta_archivo:
+                forms.alert("No se seleccionó ningún archivo.", exitscript=True)
+                return []
         
-        datos = xl.load(ruta, sheets=str(hoja), headers=encabezados)
+        # Usar la ruta guardada
+        datos = xl.load(self.ruta_archivo, sheets=str(hoja), headers=encabezados)
         filas = datos.get(hoja, {}).get('rows', [])
         
         return filas
+    
+    def reset_file(self):
+        """Resetea la ruta del archivo para permitir seleccionar uno nuevo."""
+        self.ruta_archivo = None
     
     def get_headers(self, rows, start_row = 0):
         """
@@ -93,19 +105,3 @@ class Excel:
                     row_dict[col_name] = None
             data.append(row_dict)
         return data
-
-
-# required_column = {
-#                 "COBie.Type.Manufacturer": None,
-#                 "COBie.Type.ModelNumber": None,
-#                 "COBie.Type.WarrantyDurationParts": None,
-#                 "COBie.Type.WarrantyDurationLabor": None,
-#                 "COBie.Type.ReplacementCost": None,               # Varia de acuerdo al excel
-#                 "COBie.Type.ExpectedLife": None,
-#                 "COBie.Type.NominalLength": None,
-#                 "COBie.Type.NominalWidth": None,
-#                 "COBie.Type.NominalHeight": None,
-#                 "COBie.Type.Color": None,
-#                 "COBie.Type.Finish": None,
-#                 "COBie.Type.Constituents": None
-#             }

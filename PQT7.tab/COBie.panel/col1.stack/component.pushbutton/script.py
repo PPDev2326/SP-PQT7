@@ -91,7 +91,7 @@ def get_cobie_space():
     space_rows = excel_space.read_excel('ESTANDAR COBie SPACE ')
     headers = excel_space.get_headers(space_rows, 2)
     headers_required = excel_space.headers_required(headers, columns_space)
-    data = excel_space.get_data_by_headers_required(excel_rows, headers_required, 3)
+    data = excel_space.get_data_by_headers_required(space_rows, headers_required, 3)
     
     if not data:
         forms.alert("No se pudieron cargar los datos del Excel.", exitscript=True)

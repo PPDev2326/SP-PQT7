@@ -65,19 +65,14 @@ columns_space = [
     "COBie.Space.RoomTag",
 ]
 
-def get_roomtag_from_cobie_space(doc, elem, space_data_dict):
+def get_roomtag_from_cobie_space(elem, space_data_dict):
     """
     Obtiene el RoomTag desde los datos de SPACE ya cargados.
     """
-    cobie_space_value = get_param_value(getParameter(elem, "COBie.Space.Name"))
-    param_tag_object = getParameter(elem, "COBie.Space.RoomTag")
-    
-    if not param_tag_object:
-        print("  [DEBUG] Elemento sin parametro COBie.Space.RoomTag")
-        return "0"
+    cobie_space_value = get_param_value(getParameter(elem, "COBie.Component.Space"))
     
     if not cobie_space_value:
-        print("  [DEBUG] Elemento sin valor en COBie.Space.Name")
+        print("  [DEBUG] Elemento sin valor en COBie.Component.Space")
         return "0"
     
     # Normalizar el valor (quitar espacios y convertir a string)
@@ -260,7 +255,7 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
             mbr_value = divide_string(zonification_value, 1, compare="sitio", value_default="000")
             
             # ==== Obtenemos el ambiente en el component space (usando datos precargados) ====
-            tag_number = get_roomtag_from_cobie_space(doc, elem, dict_space)
+            tag_number = get_roomtag_from_cobie_space(elem, dict_space)
 
             if tag_number and tag_number != "0" and "," in tag_number:
                 tag_number_separate = divide_string(tag_number, 0, ",")

@@ -264,9 +264,6 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
             
             # ==== Obtenemos el ambiente en el component space (usando datos precargados) ====
             tag_number = get_roomtag_from_cobie_space(elem, dict_space)
-
-            
-
             
             code_elem = get_param_value(getParameter(elem, "S&P_CODIGO DE ELEMENTO"))
             if code_elem not in (None, "", "n/a"):

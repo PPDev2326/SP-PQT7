@@ -78,6 +78,15 @@ def get_roomtag_from_cobie_space(elem, space_data_dict):
     # Normalizar el valor (quitar espacios y convertir a string)
     cobie_space_value_clean = str(cobie_space_value).strip()
     
+    # Si el valor está vacío o es "0", retornar "0"
+    if not cobie_space_value_clean or cobie_space_value_clean == "0":
+        return "0"
+    
+    # Si hay múltiples espacios separados por coma, tomar solo el primero
+    if "," in cobie_space_value_clean:
+        first_space = divide_string(cobie_space_value_clean, 0, ",")
+        cobie_space_value_clean = first_space
+    
     # Buscar en el diccionario
     if cobie_space_value_clean in space_data_dict:
         cobie_space_results = space_data_dict[cobie_space_value_clean]
@@ -88,7 +97,6 @@ def get_roomtag_from_cobie_space(elem, space_data_dict):
         print("  [DEBUG] No se encontro '{}' en diccionario SPACE".format(cobie_space_value_clean))
         print("  [DEBUG] Claves disponibles en diccionario: {}".format(list(space_data_dict.keys())[:5]))
         return "0"
-
 
 # ==== Obtener el documento activo ====
 doc = revit.doc
@@ -257,11 +265,7 @@ with revit.Transaction("Transfiere datos a Parametros COBieComponent"):
             # ==== Obtenemos el ambiente en el component space (usando datos precargados) ====
             tag_number = get_roomtag_from_cobie_space(elem, dict_space)
 
-            if tag_number and tag_number != "0" and "," in tag_number:
-                tag_number_separate = divide_string(tag_number, 0, ",")
-                tag_number = find_mapped_number(tag_number_separate)
-            elif not tag_number or tag_number == "0":
-                tag_number = "0"
+            
 
             
             code_elem = get_param_value(getParameter(elem, "S&P_CODIGO DE ELEMENTO"))

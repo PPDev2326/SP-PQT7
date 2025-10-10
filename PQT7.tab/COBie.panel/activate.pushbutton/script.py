@@ -78,7 +78,9 @@ def compute_value(code, sin_cobie_set, con_cobie_set, activate):
         return 0
     return 0
 
-if not validar_nombre(obtener_nombre_archivo()):
+nombre_archivo = obtener_nombre_archivo()
+if not validar_nombre(nombre_archivo):
+    forms.alert("ERROR: Se tiene error en el archivo {}".format(nombre_archivo), "ERROR")
     script.exit()
 
 # TaskDialog más intuitivo con mensaje claro

@@ -13,7 +13,8 @@ patron = re.compile(r"""
 -(?:000|41[5-9]|42[0-5]|43[89]|44[0-9]|45[0-6]|459) # Rango intermedio
 -ZZ-MD-(?:AR|ST|PL|EM|EE|ME|DT)                     # Especialidad
 -(?:002[1-4]\d{2}|00000[1-5])                      # Secuencia final
-(?:\s*\([^)]+\))?$                                  # Opcional: texto entre paréntesis
+(?:-AB)?                                            # Parte -AB opcional
+(?:\s*\([^)]+\))?$                                  # Texto entre paréntesis opcional
 """, re.VERBOSE)
 
 def obtener_nombre_archivo():

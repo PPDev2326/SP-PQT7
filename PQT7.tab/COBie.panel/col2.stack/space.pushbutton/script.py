@@ -25,7 +25,8 @@ from Autodesk.Revit.DB import (
 from collections import defaultdict
 from Extensions._RevitAPI import GetParameterAPI, getParameter, get_param_value
 from Extensions._Modulo import obtener_nombre_archivo, validar_nombre
-from Helper._Dictionary import get_formatted_string, find_mapped_number, ROOM_NAME_MAPPING
+from Helper._Dictionary import get_formatted_string
+from Helper._Excel import Excel
 
 output = script.get_output()
 
@@ -86,6 +87,27 @@ asignados_fail = 0
 elementos_procesados = 0
 elementos_omitidos = 0
 
+# Columna requeridas
+columns_space = [
+    "COBie.Space.Name",
+    "COBie.Space.RoomTag"
+]
+
+# Crear instancia de Excel (esto pedirá el archivo UNA SOLA VEZ)
+excel_instance = Excel()
+
+# Cargar datos de SPACE (del mismo archivo Excel ya abierto - NO PEDIRÁ EL ARCHIVO DE NUEVO)
+print("[INFO] Cargando hoja 'ESTANDAR COBie SPACE' del mismo archivo...")
+space_rows = excel_instance.read_excel('ESTANDAR COBie SPACE ')
+if not space_rows:
+    forms.alert("No se encontró hoja de Excel 'ESTANDAR COBie SPACE'.", exitscript=True)
+
+space_headers = excel_instance.get_headers(space_rows, 2)
+space_headers_required = excel_instance.headers_required(space_headers, columns_space)
+space_data = excel_instance.get_data_by_headers_required(space_rows, space_headers_required, 3)
+
+print(space_data)
+
 with revit.Transaction("Transfiere datos a Parametros COBieSpace"):
     for i, elemento in enumerate(elementos, start=1):
         output.print_md("---")
@@ -101,16 +123,29 @@ with revit.Transaction("Transfiere datos a Parametros COBieSpace"):
         value_room_number = get_param_value(room_param_number, "Sin numero")
         value_cl_description = get_param_value(cl_param_description, "Sin nombre")
         value_cl_number = get_param_value(cl_param_number, "Sin nombre")
+        # Nombre clave del elemento de Revit (Ej: "101 : PASILLO")
         name_full = get_formatted_string(value_room_number, value_room_name)
         
-        # CORRECCIÓN: Buscar en las claves del diccionario, no en los valores
-        if name_full in ROOM_NAME_MAPPING:  # o alternativamente: if name_full in ROOM_NAME_MAPPING.keys():
-            elementos_procesados += 1
-            output.print_md("✅ Elemento encontrado en mapping: **{}**".format(name_full))
-            
-            categoria = get_formatted_string(value_cl_number, value_cl_description)
-            room_tag = find_mapped_number(name_full)
+        
+        # 🟢 BÚSQUEDA: Buscar la fila en space_data donde la columna 'COBie.Space.Name' coincide con name_full
+        fila_excel = next((
+            row for row in space_data 
+            if row.get("COBie.Space.Name") == name_full
+        ), None) # Retorna el diccionario de la fila si lo encuentra, sino None
 
+        
+        if fila_excel:
+            # ✅ El elemento se encontró en los datos de Excel.
+            elementos_procesados += 1
+            output.print_md("✅ Elemento encontrado en datos de Excel: **{}**".format(name_full))
+            
+            # --- EXTRACCIÓN DE DATOS DE EXCEL ---
+            categoria = get_formatted_string(value_cl_number, value_cl_description)
+            
+            # Extraer el RoomTag (o cualquier otra columna) directamente de la fila de Excel
+            room_tag = fila_excel.get("COBie.Space.RoomTag")
+
+            # --- OBTENCIÓN DE DATOS DE REVIT ---
             height = GetParameterAPI(elemento, BuiltInParameter.ROOM_UPPER_OFFSET)
             area = GetParameterAPI(elemento, BuiltInParameter.ROOM_AREA)
 
@@ -123,7 +158,7 @@ with revit.Transaction("Transfiere datos a Parametros COBieSpace"):
                 "COBie.CreatedOn": FECHA,
                 "COBie.Space.Category": categoria,
                 "COBie.Space.Description": value_room_name,
-                "COBie.Space.RoomTag": room_tag,
+                "COBie.Space.RoomTag": room_tag, # ⬅️ USADO DEL EXCEL
                 "COBie.Space.UsableHeight": height_val,
                 "COBie.Space.GrossArea": area_val,
                 "COBie.Space.NetArea": area_val,
@@ -136,8 +171,11 @@ with revit.Transaction("Transfiere datos a Parametros COBieSpace"):
                 else:
                     asignados_fail += 1
         else:
+            # ⚠️ El elemento NO se encontró en los datos de Excel.
             elementos_omitidos += 1
-            output.print_md("⚠️ Elemento omitido (no encontrado en mapping): **{}**".format(name_full))
+            output.print_md("⚠️ Elemento omitido (no encontrado en datos de Excel): **{}**".format(name_full))
+
+output.print_md("---")
 
 output.print_md("---")
 output.print_md("### 📊 Resumen final")

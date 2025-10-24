@@ -5,7 +5,8 @@ Version = 1.1
 Date = 23.09.2025
 ------------------------------------------------------------------
 Description:
-Llenara los parametros del COBieSpace.
+Llenara los parametros del COBieSpace como complemento pedira el excel
+Matriz COBie donde se encuentra ESTANDAR COBie SPACE.
 ------------------------------------------------------------------
 ¿Cómo hacerlo?
 -> Click en el boton.

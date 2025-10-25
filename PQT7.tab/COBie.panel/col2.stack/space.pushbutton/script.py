@@ -155,47 +155,40 @@ with revit.Transaction("Transfiere datos a Parametros COBieSpace"):
             cl_description_excel = fila_excel.get("Classification.Space.Description")
             
             # Lógica de verificación para Classification.Space.Number
-            if not get_param_value(cl_param_number_revit, ""): # Verifica si el parámetro de Revit está vacío
-                if cl_number_excel: # Verifica que el valor del Excel no esté vacío
+            # Leemos el valor actual en Revit. Usamos get_param_value para manejar None/null/vacío.
+            is_number_revit_empty = not get_param_value(cl_param_number_revit, "")
+            
+            if is_number_revit_empty: 
+                if cl_number_excel: # Si Revit está vacío Y Excel tiene valor
                     set_param(cl_param_number_revit, cl_number_excel, elemento, "Classification.Space.Number")
+                    final_cl_number = cl_number_excel # ⬅️ USAMOS EL VALOR DEL EXCEL
                 else:
                     output.print_md("ℹ️ Valor de 'Classification.Space.Number' de Excel vacío. Omitido.")
+                    final_cl_number = value_cl_number # ⬅️ USAMOS EL VALOR ORIGINAL DE REVIT
             else:
                 output.print_md("🔒 'Classification.Space.Number' ya tiene un valor. Omitido.")
+                final_cl_number = value_cl_number # ⬅️ USAMOS EL VALOR ORIGINAL DE REVIT
 
             # Lógica de verificación para Classification.Space.Description
-            if not get_param_value(cl_param_description_revit, ""): # Verifica si el parámetro de Revit está vacío
-                if cl_description_excel: # Verifica que el valor del Excel no esté vacío
+            is_description_revit_empty = not get_param_value(cl_param_description_revit, "")
+            
+            if is_description_revit_empty: 
+                if cl_description_excel: # Si Revit está vacío Y Excel tiene valor
                     set_param(cl_param_description_revit, cl_description_excel, elemento, "Classification.Space.Description")
+                    final_cl_description = cl_description_excel # ⬅️ USAMOS EL VALOR DEL EXCEL
                 else:
                     output.print_md("ℹ️ Valor de 'Classification.Space.Description' de Excel vacío. Omitido.")
+                    final_cl_description = value_cl_description # ⬅️ USAMOS EL VALOR ORIGINAL DE REVIT
             else:
                 output.print_md("🔒 'Classification.Space.Description' ya tiene un valor. Omitido.")
-
+                final_cl_description = value_cl_description # ⬅️ USAMOS EL VALOR ORIGINAL DE REVIT
             
-            # --- OBTENCIÓN DE DATOS NECESARIOS PARA CATEGORY (POSTERIOR A LA ASIGNACIÓN) ---
             
-            # Debemos RE-LEER los valores después del SET para asegurar que 'categoria' usa el nuevo valor.
-            # Sin embargo, como estamos en la misma transacción, los valores de getParameter no se actualizarán
-            # inmediatamente. La forma más segura es usar los valores del EXCEL para generar la categoría
-            # si los parámetros en Revit estaban vacíos.
+            # ----------------------------------------------------
+            # 2. GENERAR CATEGORY CON LOS VALORES FINALES
+            # ----------------------------------------------------
             
-            # Usaremos los valores del Excel si los parámetros de Revit estaban vacíos (basado en la lógica anterior)
-            # Si el parámetro de Revit NO estaba vacío, value_cl_number y value_cl_description 
-            # ya contienen el valor original de Revit (leído antes del loop), lo cual es lo que necesitamos.
-            
-            # Si se asignaron valores de Excel, usamos esos valores para generar la categoría
-            if not get_param_value(cl_param_number_revit, ""):
-                final_cl_number = cl_number_excel
-            else:
-                final_cl_number = value_cl_number
-                
-            if not get_param_value(cl_param_description_revit, ""):
-                final_cl_description = cl_description_excel
-            else:
-                final_cl_description = value_cl_description
-            
-            # Generar CATEGORY con los valores finales (originales de Revit o asignados del Excel)
+            # Generar CATEGORY con los valores finales (siempre usando el valor que DEBERÍA estar en el parámetro)
             categoria = get_formatted_string(final_cl_number, final_cl_description)
             
             # Extraer el RoomTag (o cualquier otra columna) directamente de la fila de Excel
@@ -209,14 +202,14 @@ with revit.Transaction("Transfiere datos a Parametros COBieSpace"):
             area_val = get_param_value(area, 0)
 
             # ----------------------------------------------------
-            # 2. ASIGNACIÓN DEL RESTO DE PARÁMETROS (incluyendo Category)
+            # 3. ASIGNACIÓN DEL RESTO DE PARÁMETROS 
             # ----------------------------------------------------
             
             parametros = {
                 "COBie.Space.Name": name_full,
                 "COBie.CreatedBy": CORREO,
                 "COBie.CreatedOn": FECHA,
-                "COBie.Space.Category": categoria, # ⬅️ AHORA USA EL VALOR GENERADO
+                "COBie.Space.Category": categoria, # ⬅️ USA EL VALOR GENERADO CORRECTAMENTE
                 "COBie.Space.Description": value_room_name,
                 "COBie.Space.RoomTag": room_tag,
                 "COBie.Space.UsableHeight": height_val,

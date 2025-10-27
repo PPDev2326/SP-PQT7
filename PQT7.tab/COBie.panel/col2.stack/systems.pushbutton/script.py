@@ -11,6 +11,7 @@ from pyrevit import revit, forms, script
 from Extensions._Modulo import obtener_nombre_archivo, validar_nombre
 from Extensions._RevitAPI import getParameter, GetParameterAPI, SetParameter
 from DBRepositories.SpecialtiesRepository import SpecialtiesRepository
+from DBRepositories.SchoolRepository import ColegiosRepository
 
 uidoc = revit.uidoc
 doc = revit.doc
@@ -50,6 +51,16 @@ def clean_system_name(name):
     s = re.sub(r'\s+', ' ', s).strip()                   # compactar espacios
     return s.title()
 
+# ==== Instanciamos el colegio correspondiente del modelo activo ====
+school_repo_object = ColegiosRepository()
+school_object = school_repo_object.codigo_colegio(doc)
+school = None
+created_by = None
+
+# ==== Verificamos si el colegio existe
+if school_object:
+    school = school_object.name
+    created_by = school_object.created_by
 
 specialty_instance = SpecialtiesRepository()
 specialty_object = specialty_instance.get_specialty_by_document(doc)
@@ -58,7 +69,6 @@ specialty = specialty_object.name
 if specialty in ["INSTALACIONES SANITARIAS", "INSTALACIONES MECANICAS"]:
 
     # ==== Variables constantes ====
-    CREATED_BY = "jtiburcio@syp.com.pe"
     CREATED_ON = "2025-04-18T16:45:10"
 
     # ==== Categoria de COBie.System.Category ====
@@ -79,7 +89,7 @@ if specialty in ["INSTALACIONES SANITARIAS", "INSTALACIONES MECANICAS"]:
     activo = divide_string(param_activo, 1)
 
     parametros_estaticos = {
-        "COBie.CreatedBy": CREATED_BY,
+        "COBie.CreatedBy": created_by,
         "COBie.CreatedOn": CREATED_ON,
         "COBie.System.Category": categoria.get(specialty, "")
     }

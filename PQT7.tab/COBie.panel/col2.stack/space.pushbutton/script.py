@@ -28,6 +28,7 @@ from Extensions._RevitAPI import GetParameterAPI, getParameter, get_param_value
 from Extensions._Modulo import obtener_nombre_archivo, validar_nombre
 from Helper._Dictionary import get_formatted_string
 from Helper._Excel import Excel
+from DBRepositories.SchoolRepository import ColegiosRepository
 
 output = script.get_output()
 
@@ -57,8 +58,18 @@ if not validar_nombre(nombre_archivo):
 
 doc = revit.doc
 
+# ==== Instanciamos el colegio correspondiente del modelo activo ====
+school_repo_object = ColegiosRepository()
+school_object = school_repo_object.codigo_colegio(doc)
+school = None
+created_by = None
+
+# ==== Verificamos si el colegio existe
+if school_object:
+    school = school_object.name
+    created_by = school_object.created_by
+
 # Datos del usuario
-CORREO = "mespinoza@syp.com.pe"
 FECHA = "2023-04-07T16:38:56"
 
 # Obtener Rooms y Spaces
@@ -207,7 +218,7 @@ with revit.Transaction("Transfiere datos a Parametros COBieSpace"):
             
             parametros = {
                 "COBie.Space.Name": name_full,
-                "COBie.CreatedBy": CORREO,
+                "COBie.CreatedBy": created_by,
                 "COBie.CreatedOn": FECHA,
                 "COBie.Space.Category": categoria, # ⬅️ USA EL VALOR GENERADO CORRECTAMENTE
                 "COBie.Space.Description": value_room_name,

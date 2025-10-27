@@ -58,7 +58,7 @@ if not validar_nombre(nombre_archivo):
 doc = revit.doc
 
 # Datos del usuario
-CORREO = "jtiburcio@syp.com.pe"
+CORREO = "mespinoza@syp.com.pe"
 FECHA = "2023-04-07T16:38:56"
 
 # Obtener Rooms y Spaces

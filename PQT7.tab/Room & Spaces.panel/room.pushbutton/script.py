@@ -21,10 +21,15 @@ output = script.get_output()
 
 # Constantes
 TOLERANCIA_PIES = 0.410105  # 12.5 cm en pies
+TOLERANCIA_NIVEL_PIES = 1.0  # Tolerancia vertical para considerar mismo nivel (30 cm)
+TOLERANCIA_PUERTA_VENTANA_PIES = 16.404  # 5 metros - distancia máxima razonable al centro del room
 PARAM_NAME = "S&P_AMBIENTE"
 PARAM_COBIE = "COBie.Component.Space"
 PARAM_COBIE_BOOL = "COBie"
 FALLBACK_VALUE = "Activo"
+
+# Variable global para controlar modo sobrescritura
+SOBRESCRIBIR_GLOBAL = True
 
 
 def get_room_number(room):
@@ -37,6 +42,31 @@ def get_room_number(room):
     except:
         pass
     return ""
+
+
+def obtener_nivel_z(elemento):
+    """
+    Obtiene la coordenada Z del nivel del elemento.
+    Para puertas y ventanas, usa el punto de inserción.
+    """
+    try:
+        # Intentar obtener el nivel del elemento
+        if hasattr(elemento, 'LevelId'):
+            nivel_id = elemento.LevelId
+            if nivel_id and nivel_id != ElementId.InvalidElementId:
+                nivel = doc.GetElement(nivel_id)
+                if nivel:
+                    return nivel.Elevation
+        
+        # Si no se puede obtener el nivel, usar el punto de ubicación
+        if hasattr(elemento, 'Location'):
+            location = elemento.Location
+            if location and hasattr(location, 'Point'):
+                return location.Point.Z
+    except:
+        pass
+    
+    return None
 
 
 def obtener_habitaciones_de_vinculos_transformadas(documento, nombres_vinculos):
@@ -117,11 +147,10 @@ def is_point_inside_transformed(room, transform, punto):
         return False
 
 
-def obtener_dos_rooms_mas_cercanos(habitaciones_transformadas, punto):
+def obtener_rooms_cercanos_mismo_nivel_con_limite(habitaciones_transformadas, punto, nivel_z_elemento, max_distancia_pies):
     """
-    Obtiene las 2 habitaciones más cercanas a un punto.
-    habitaciones_transformadas: lista de tuplas (room, transform)
-    Retorna una lista de tuplas (distancia, room, transform) ordenadas por distancia.
+    Obtiene habitaciones cercanas EN EL MISMO NIVEL y dentro de una distancia máxima.
+    Solo considera la distancia en X e Y (horizontal).
     """
     distancias = []
     
@@ -131,18 +160,26 @@ def obtener_dos_rooms_mas_cercanos(habitaciones_transformadas, punto):
             if not punto_room:
                 continue
             
+            # Verificar que el room esté en el mismo nivel (tolerancia vertical)
+            if nivel_z_elemento is not None:
+                diferencia_z = abs(punto_room.Z - nivel_z_elemento)
+                if diferencia_z > TOLERANCIA_NIVEL_PIES:
+                    continue
+            
+            # Calcular distancia SOLO en horizontal (X, Y)
             dx = punto_room.X - punto.X
             dy = punto_room.Y - punto.Y
-            dz = punto_room.Z - punto.Z
-            distancia = (dx*dx + dy*dy + dz*dz) ** 0.5
+            distancia_horizontal = (dx*dx + dy*dy) ** 0.5
             
-            distancias.append((distancia, room, transform))
+            # Solo agregar si está dentro de la distancia máxima
+            if distancia_horizontal <= max_distancia_pies:
+                distancias.append((distancia_horizontal, room, transform))
         except:
             continue
     
-    # Ordenar por distancia y tomar los 2 primeros
+    # Ordenar por distancia horizontal
     distancias.sort(key=lambda x: x[0])
-    return distancias[:2]
+    return distancias
 
 
 def extraer_numero_para_ordenar(numero_str):
@@ -161,22 +198,23 @@ def extraer_numero_para_ordenar(numero_str):
 
 
 def procesar_puerta_ventana(elemento, habitaciones_transformadas, failed_list):
+    """
+    Procesa puertas y ventanas para asignar hasta 2 habitaciones colindantes.
+    Estrategia mejorada:
+    1. FromRoom y ToRoom (si están en doc actual)
+    2. Verificar si puntos están DENTRO de rooms
+    3. Si encontró 1, buscar la segunda con tolerancia más generosa (10m)
+    4. Si no encontró ninguna, buscar por proximidad normal (5m)
+    """
     try:
         rooms_unicos = []
         ids_usados = set()
         numeros_usados = set()
         
-        # Obtener el nivel del elemento para filtrar habitaciones
-        elemento_nivel_id = None
-        try:
-            elemento_nivel_id = elemento.LevelId if hasattr(elemento, 'LevelId') else None
-        except:
-            pass
+        # Obtener el nivel Z del elemento
+        nivel_z_elemento = obtener_nivel_z(elemento)
         
-        # NOTA: Para vínculos, el filtrado por nivel es complejo porque los niveles
-        # están en documentos diferentes. Por ahora, trabajamos con todas las habitaciones.
-        
-        # PASO 1: Intentar FromRoom y ToRoom (solo funciona si el elemento está en el doc actual)
+        # PASO 1: Intentar FromRoom y ToRoom
         from_room = None
         to_room = None
         try:
@@ -185,7 +223,6 @@ def procesar_puerta_ventana(elemento, habitaciones_transformadas, failed_list):
         except:
             pass
 
-        # Agregar FromRoom si es válido
         if from_room:
             nombre = get_room_name(from_room)
             numero = get_room_number(from_room)
@@ -195,7 +232,6 @@ def procesar_puerta_ventana(elemento, habitaciones_transformadas, failed_list):
                 ids_usados.add(from_room.Id.IntegerValue)
                 numeros_usados.add(numero)
 
-        # Agregar ToRoom si es válido y diferente
         if to_room and to_room.Id.IntegerValue not in ids_usados:
             nombre = get_room_name(to_room)
             numero = get_room_number(to_room)
@@ -206,31 +242,85 @@ def procesar_puerta_ventana(elemento, habitaciones_transformadas, failed_list):
                     ids_usados.add(to_room.Id.IntegerValue)
                     numeros_usados.add(numero)
 
-        # PASO 2: Si tenemos menos de 2 ambientes, buscar por proximidad
+        # PASO 2: Si tenemos menos de 2, verificar si puntos están DENTRO de rooms
         if len(rooms_unicos) < 2:
             pts = puntos_representativos(elemento) or []
             
-            # Obtener TODOS los rooms cercanos de todos los puntos
+            for punto in pts:
+                if not punto:
+                    continue
+                
+                if len(rooms_unicos) >= 2:
+                    break
+                
+                z_ref = nivel_z_elemento if nivel_z_elemento is not None else punto.Z
+                
+                # Verificar en cada habitación del mismo nivel
+                for room, transform in habitaciones_transformadas:
+                    if len(rooms_unicos) >= 2:
+                        break
+                    
+                    # Saltar si ya lo tenemos
+                    if room.Id.IntegerValue in ids_usados:
+                        continue
+                    
+                    # Verificar mismo nivel
+                    punto_room = obtener_punto_transformado(room, transform)
+                    if not punto_room:
+                        continue
+                    
+                    if z_ref is not None:
+                        diferencia_z = abs(punto_room.Z - z_ref)
+                        if diferencia_z > TOLERANCIA_NIVEL_PIES:
+                            continue
+                    
+                    # Verificar si el punto está DENTRO
+                    if is_point_inside_transformed(room, transform, punto):
+                        nombre = get_room_name(room)
+                        numero = get_room_number(room)
+                        
+                        if nombre and numero:
+                            nombre_upper = nombre.upper()
+                            if numero not in numeros_usados:
+                                rooms_unicos.append((numero, nombre_upper, room.Id))
+                                ids_usados.add(room.Id.IntegerValue)
+                                numeros_usados.add(numero)
+        
+        # PASO 3: Si tenemos exactamente 1, buscar la segunda con tolerancia GENEROSA (10m)
+        # Si no tenemos ninguna, buscar con tolerancia normal (5m)
+        if len(rooms_unicos) < 2:
+            pts = puntos_representativos(elemento) or []
+            
+            # CLAVE: Si ya encontró 1, usar tolerancia mayor para la segunda
+            tolerancia_busqueda = 32.8084 if len(rooms_unicos) == 1 else TOLERANCIA_PUERTA_VENTANA_PIES  # 10m si ya tiene 1, sino 5m
+            
             candidatos = []
             for punto in pts:
                 if not punto:
                     continue
-                    
-                cercanos = obtener_dos_rooms_mas_cercanos(habitaciones_transformadas, punto)
+                
+                z_ref = nivel_z_elemento if nivel_z_elemento is not None else punto.Z
+                
+                # Buscar habitaciones cercanas
+                cercanos = obtener_rooms_cercanos_mismo_nivel_con_limite(
+                    habitaciones_transformadas, 
+                    punto,
+                    z_ref,
+                    tolerancia_busqueda
+                )
+                
                 for distancia, room, transform in cercanos:
-                    # Solo agregar si no está en candidatos ya
                     if room.Id.IntegerValue not in [r.Id.IntegerValue for d, r, t in candidatos]:
                         candidatos.append((distancia, room, transform))
             
-            # Ordenar candidatos por distancia
+            # Ordenar por distancia
             candidatos.sort(key=lambda x: x[0])
             
-            # Intentar agregar hasta tener 2 rooms diferentes
+            # Agregar hasta tener 2 rooms diferentes
             for distancia, room, transform in candidatos:
                 if len(rooms_unicos) >= 2:
                     break
                 
-                # Saltar si ya usamos este room
                 if room.Id.IntegerValue in ids_usados:
                     continue
                 
@@ -242,7 +332,6 @@ def procesar_puerta_ventana(elemento, habitaciones_transformadas, failed_list):
                 
                 nombre_upper = nombre.upper()
                 
-                # Solo agregar si el NÚMERO es diferente
                 if numero not in numeros_usados:
                     rooms_unicos.append((numero, nombre_upper, room.Id))
                     ids_usados.add(room.Id.IntegerValue)
@@ -252,7 +341,7 @@ def procesar_puerta_ventana(elemento, habitaciones_transformadas, failed_list):
         if not rooms_unicos:
             return False
 
-        # PASO 3: Ordenar por número y construir cadena
+        # PASO 4: Ordenar por número y construir cadena
         rooms_unicos.sort(key=lambda x: extraer_numero_para_ordenar(x[0]))
 
         if len(rooms_unicos) >= 2:
@@ -271,30 +360,6 @@ def procesar_puerta_ventana(elemento, habitaciones_transformadas, failed_list):
     except Exception as e:
         output.print_md("**Error procesando puerta/ventana {}: {}**".format(elemento.Id, str(e)))
         return False
-
-
-def verificar_parametros_vacios(elemento):
-    """
-    Verifica si los parámetros S&P_AMBIENTE y COBie.Component.Space están vacíos.
-    Retorna True si ambos están vacíos, False si al menos uno tiene valor.
-    """
-    prm_ambiente = elemento.LookupParameter(PARAM_NAME)
-    prm_cobie = elemento.LookupParameter(PARAM_COBIE)
-    
-    ambiente_vacio = True
-    cobie_vacio = True
-    
-    if prm_ambiente and prm_ambiente.StorageType == StorageType.String:
-        valor = prm_ambiente.AsString()
-        if valor and valor.strip():
-            ambiente_vacio = False
-    
-    if prm_cobie and prm_cobie.StorageType == StorageType.String:
-        valor = prm_cobie.AsString()
-        if valor and valor.strip():
-            cobie_vacio = False
-    
-    return ambiente_vacio and cobie_vacio
 
 
 def verificar_cobie_activo(elemento):
@@ -316,36 +381,60 @@ def asignar_ambiente(elemento, nombre_ambiente, numero_ambiente, failed_list):
     Asigna valores a los parámetros 'S&P_AMBIENTE' y 'COBie.Component.Space'.
     - S&P_AMBIENTE: solo el nombre en MAYÚSCULAS
     - COBie.Component.Space: formato "numero : NOMBRE" en MAYÚSCULAS
-    Retorna True si se asignó correctamente al menos uno, False si ambos fallan.
+    
+    Si SOBRESCRIBIR_GLOBAL es False, solo asigna a parámetros vacíos individualmente.
+    Retorna True si se asignó al menos uno, False si no se pudo asignar ninguno.
     """
-    exito = False
+    asignado_ambiente = False
+    asignado_cobie = False
     
     try:
-        # Asignar a S&P_AMBIENTE (solo nombre en MAYÚSCULAS)
+        # PARÁMETRO 1: S&P_AMBIENTE
         prm_ambiente = elemento.LookupParameter(PARAM_NAME)
         if prm_ambiente and prm_ambiente.StorageType == StorageType.String:
-            prm_ambiente.Set(nombre_ambiente.upper())
-            exito = True
+            debe_asignar = SOBRESCRIBIR_GLOBAL
+            
+            if not SOBRESCRIBIR_GLOBAL:
+                # Solo asignar si está vacío
+                valor_actual = prm_ambiente.AsString()
+                if valor_actual is None or valor_actual.strip() == "":
+                    debe_asignar = True
+            
+            if debe_asignar:
+                prm_ambiente.Set(nombre_ambiente.upper())
+                asignado_ambiente = True
         
-        # Asignar a COBie.Component.Space (numero : NOMBRE en MAYÚSCULAS)
+        # PARÁMETRO 2: COBie.Component.Space
         prm_cobie = elemento.LookupParameter(PARAM_COBIE)
         if prm_cobie and prm_cobie.StorageType == StorageType.String:
-            if numero_ambiente:
-                valor_cobie = "{} : {}".format(numero_ambiente, nombre_ambiente.upper())
-            else:
-                valor_cobie = nombre_ambiente.upper()
-            prm_cobie.Set(valor_cobie)
-            exito = True
+            debe_asignar = SOBRESCRIBIR_GLOBAL
+            
+            if not SOBRESCRIBIR_GLOBAL:
+                # Solo asignar si está vacío
+                valor_actual = prm_cobie.AsString()
+                if valor_actual is None or valor_actual.strip() == "":
+                    debe_asignar = True
+            
+            if debe_asignar:
+                if numero_ambiente:
+                    valor_cobie = "{} : {}".format(numero_ambiente, nombre_ambiente.upper())
+                else:
+                    valor_cobie = nombre_ambiente.upper()
+                prm_cobie.Set(valor_cobie)
+                asignado_cobie = True
         
-        if not exito:
+        # Retornar True si se asignó AL MENOS UNO
+        if asignado_ambiente or asignado_cobie:
+            return True
+        else:
+            # No se pudo asignar ninguno
             failed_list.append(elemento.Id)
+            return False
             
     except Exception as e:
         output.print_md("**Error en elemento {}: {}**".format(elemento.Id, str(e)))
         failed_list.append(elemento.Id)
         return False
-    
-    return exito
 
 
 def asignar_ambiente_puerta_ventana(elemento, nombre_combinado, valor_cobie, failed_list):
@@ -353,31 +442,55 @@ def asignar_ambiente_puerta_ventana(elemento, nombre_combinado, valor_cobie, fai
     Asignación especial para puertas y ventanas con formato:
     - S&P_AMBIENTE: "23 : SALA, 26 : COMEDOR"
     - COBie.Component.Space: "23 : SALA, 26 : COMEDOR"
+    
+    Si SOBRESCRIBIR_GLOBAL es False, solo asigna a parámetros vacíos individualmente.
     """
-    exito = False
+    asignado_ambiente = False
+    asignado_cobie = False
     
     try:
-        # Asignar a S&P_AMBIENTE
+        # PARÁMETRO 1: S&P_AMBIENTE
         prm_ambiente = elemento.LookupParameter(PARAM_NAME)
         if prm_ambiente and prm_ambiente.StorageType == StorageType.String:
-            prm_ambiente.Set(nombre_combinado)
-            exito = True
+            debe_asignar = SOBRESCRIBIR_GLOBAL
+            
+            if not SOBRESCRIBIR_GLOBAL:
+                # Solo asignar si está vacío
+                valor_actual = prm_ambiente.AsString()
+                if valor_actual is None or valor_actual.strip() == "":
+                    debe_asignar = True
+            
+            if debe_asignar:
+                prm_ambiente.Set(nombre_combinado)
+                asignado_ambiente = True
         
-        # Asignar a COBie.Component.Space (mismo valor)
+        # PARÁMETRO 2: COBie.Component.Space
         prm_cobie = elemento.LookupParameter(PARAM_COBIE)
         if prm_cobie and prm_cobie.StorageType == StorageType.String:
-            prm_cobie.Set(valor_cobie)
-            exito = True
+            debe_asignar = SOBRESCRIBIR_GLOBAL
+            
+            if not SOBRESCRIBIR_GLOBAL:
+                # Solo asignar si está vacío
+                valor_actual = prm_cobie.AsString()
+                if valor_actual is None or valor_actual.strip() == "":
+                    debe_asignar = True
+            
+            if debe_asignar:
+                prm_cobie.Set(valor_cobie)
+                asignado_cobie = True
         
-        if not exito:
+        # Retornar True si se asignó AL MENOS UNO
+        if asignado_ambiente or asignado_cobie:
+            return True
+        else:
+            # No se pudo asignar ninguno
             failed_list.append(elemento.Id)
+            return False
             
     except Exception as e:
         output.print_md("**Error en elemento {}: {}**".format(elemento.Id, str(e)))
         failed_list.append(elemento.Id)
         return False
-    
-    return exito
 
 
 def procesar_elemento_fase1(elemento, habitaciones_transformadas, failed_list):
@@ -586,6 +699,24 @@ if not seleccion:
 sels_cats = [mapeo[n] for n in seleccion]
 output.print_md("### Categorías seleccionadas: {}".format(", ".join(seleccion)))
 
+# ==================== PREGUNTA: SOBRESCRIBIR ====================
+sobrescribir = forms.alert(
+    "¿Deseas SOBRESCRIBIR los parámetros que ya tienen valores?\n\n"
+    "SI: Sobrescribir todos (actualizar valores existentes)\n"
+    "NO: Solo llenar parámetros vacíos (cada parámetro se evalúa individualmente)",
+    title="Modo de sobrescritura",
+    yes=True,
+    no=True
+)
+
+# Configurar variable global
+SOBRESCRIBIR_GLOBAL = sobrescribir
+
+if sobrescribir:
+    output.print_md("### ⚠️ MODO: Sobrescribir valores existentes")
+else:
+    output.print_md("### ℹ️ MODO: Solo llenar parámetros vacíos (cada uno individualmente)")
+
 # Verificar si hay puertas, ventanas o modelos genéricos seleccionados
 tiene_puertas = "Puertas" in seleccion or "Doors" in seleccion
 tiene_ventanas = "Ventanas" in seleccion or "Windows" in seleccion
@@ -593,7 +724,8 @@ tiene_genericos = "Modelos genéricos" in seleccion or "Generic Models" in selec
 procesamiento_especial = tiene_puertas or tiene_ventanas or tiene_genericos
 
 if procesamiento_especial:
-    output.print_md("### ℹ️ Se aplicará procesamiento especial para puertas/ventanas/modelos genéricos (2 ambientes)")
+    output.print_md("### ℹ️ Puertas/Ventanas: Detectan hasta 2 ambientes colindantes (máximo {} m de distancia)".format(
+        round(TOLERANCIA_PUERTA_VENTANA_PIES * 0.3048, 1)))
 
 # 3) Obtener habitaciones (ahora como lista de tuplas (room, transform))
 habs = obtener_habitaciones(doc)
@@ -606,7 +738,6 @@ output.print_md("### Elementos encontrados: {}".format(len(elems)))
 # Tracking
 elems_asignados = set()
 elems_ignorados_cobie = []
-elems_ignorados_llenos = []
 failed_param = []
 asignados_fase1 = 0
 asignados_fase2 = 0
@@ -620,7 +751,7 @@ with revit.Transaction("Asignar Ambiente"):
     
     # Procesamiento especial para puertas, ventanas y modelos genéricos (si aplica)
     if procesamiento_especial:
-        output.print_md("#### Procesando puertas, ventanas y modelos genéricos (2 ambientes)...")
+        output.print_md("#### Procesando puertas, ventanas y modelos genéricos...")
         for e in elems:
             # Solo procesar si es puerta, ventana o modelo genérico
             try:
@@ -635,11 +766,8 @@ with revit.Transaction("Asignar Ambiente"):
                     elems_ignorados_cobie.append(e.Id)
                     continue
                 
-                # Verificar si parámetros están vacíos
-                if not verificar_parametros_vacios(e):
-                    elems_ignorados_llenos.append(e.Id)
-                    continue
-                
+                # SIEMPRE intenta procesar el elemento
+                # La función asignar_ambiente_puerta_ventana maneja individualmente cada parámetro
                 if procesar_puerta_ventana(e, habs, failed_param):
                     elems_asignados.add(e.Id)
                     asignados_especial += 1
@@ -658,12 +786,8 @@ with revit.Transaction("Asignar Ambiente"):
                 elems_ignorados_cobie.append(e.Id)
             continue
         
-        # Verificar si parámetros están vacíos
-        if not verificar_parametros_vacios(e):
-            if e.Id not in elems_ignorados_llenos:
-                elems_ignorados_llenos.append(e.Id)
-            continue
-        
+        # SIEMPRE intenta procesar el elemento
+        # La función asignar_ambiente maneja individualmente cada parámetro
         if procesar_elemento_fase1(e, habs, failed_param):
             elems_asignados.add(e.Id)
             asignados_fase1 += 1
@@ -671,7 +795,7 @@ with revit.Transaction("Asignar Ambiente"):
     # Fase 2: Proximidad
     output.print_md("#### Procesando Fase 2: Elementos por proximidad...")
     for e in elems:
-        if e.Id in elems_asignados or e.Id in elems_ignorados_cobie or e.Id in elems_ignorados_llenos:
+        if e.Id in elems_asignados or e.Id in elems_ignorados_cobie:
             continue
         
         if procesar_elemento_fase2(e, habs, failed_param):
@@ -681,7 +805,7 @@ with revit.Transaction("Asignar Ambiente"):
     # Fase 3: Resto como "Activo"
     output.print_md("#### Procesando Fase 3: Elementos restantes como '{}'...".format(FALLBACK_VALUE))
     for e in elems:
-        if e.Id in elems_asignados or e.Id in elems_ignorados_cobie or e.Id in elems_ignorados_llenos:
+        if e.Id in elems_asignados or e.Id in elems_ignorados_cobie:
             continue
         
         if asignar_ambiente(e, FALLBACK_VALUE, "", failed_param):
@@ -692,17 +816,16 @@ with revit.Transaction("Asignar Ambiente"):
 # ==================== RESULTADOS ====================
 
 total_asignados = asignados_fase1 + asignados_fase2 + asignados_fase3 + asignados_especial
-total_ignorados = len(elems_ignorados_cobie) + len(elems_ignorados_llenos)
 
 output.print_md("---")
 output.print_md("### 📊 Resumen de Resultados")
 if asignados_especial > 0:
-    output.print_md("- **Puertas/Ventanas/Genéricos** (2 ambientes): {}".format(asignados_especial))
+    output.print_md("- **Puertas/Ventanas/Genéricos** (hasta 2 ambientes): {}".format(asignados_especial))
 output.print_md("- **Fase 1** (dentro de habitación): {}".format(asignados_fase1))
 output.print_md("- **Fase 2** (por proximidad): {}".format(asignados_fase2))
 output.print_md("- **Fase 3** (como '{}'): {}".format(FALLBACK_VALUE, asignados_fase3))
 output.print_md("- **Total asignados**: {}".format(total_asignados))
-output.print_md("- **Ignorados** (COBie inactivo o parámetros llenos): {}".format(total_ignorados))
+output.print_md("- **Ignorados** (COBie inactivo): {}".format(len(elems_ignorados_cobie)))
 output.print_md("- **Sin asignar** (sin parámetros válidos): {}".format(len(failed_param)))
 
 # Mostrar elementos asignados como "Activo" (para revisión manual)
@@ -741,10 +864,8 @@ if asignados_fase3 > 0:
                     output.linkify(elem_id)
                 ))
             else:
-                # Si no se puede obtener el elemento, al menos mostrar el ID
                 output.print_md("- ID: {}".format(output.linkify(elem_id)))
         except Exception as ex:
-            # En caso de error, mostrar el ID de todas formas
             output.print_md("- ID: {} (Error: {})".format(output.linkify(elem_id), str(ex)))
     
     if len(elementos_fase3_ids) > 50:
@@ -772,18 +893,19 @@ if failed_param:
         output.print_md("")
         output.print_md("*Mostrando 15 de {} elementos*".format(len(failed_param)))
 
-forms.alert(
-    "Proceso terminado:\n\n"
-    "✅ {} elementos asignados correctamente\n"
-    "⚠️ {} elementos asignados como '{}' (revisar manualmente)\n"
-    "⏭️ {} elementos ignorados (COBie inactivo o ya llenos)\n"
-    "❌ {} sin parámetros válidos\n\n"
-    "Revisa la terminal para IDs seleccionables.".format(
-        asignados_fase1 + asignados_fase2 + asignados_especial, 
-        asignados_fase3,
-        FALLBACK_VALUE,
-        total_ignorados, 
-        len(failed_param)
-    ),
-    title="Asignación Completada"
-)
+# Mensaje final personalizado
+mensaje_final = "Proceso terminado:\n\n"
+mensaje_final += "✅ {} elementos asignados correctamente\n".format(asignados_fase1 + asignados_fase2 + asignados_especial)
+
+if asignados_fase3 > 0:
+    mensaje_final += "⚠️ {} elementos asignados como '{}' (revisar manualmente)\n".format(asignados_fase3, FALLBACK_VALUE)
+
+if len(elems_ignorados_cobie) > 0:
+    mensaje_final += "⏭️ {} elementos ignorados (COBie inactivo)\n".format(len(elems_ignorados_cobie))
+
+if len(failed_param) > 0:
+    mensaje_final += "❌ {} sin parámetros válidos\n".format(len(failed_param))
+
+mensaje_final += "\nRevisa la terminal para IDs seleccionables."
+
+forms.alert(mensaje_final, title="Asignación Completada")

@@ -2,14 +2,15 @@
 __title__ = "COBie Type"
 
 import re
-from Autodesk.Revit.DB import BuiltInParameter, StorageType, UnitUtils, UnitTypeId, FamilyInstance, ElementType
+from Autodesk.Revit.DB import BuiltInParameter, StorageType, UnitUtils, UnitTypeId, FamilyInstance, ElementType, FilteredElementCollector, BuiltInCategory
 from Autodesk.Revit.UI import TaskDialog
 from pyrevit import script, revit, forms
-from Extensions._RevitAPI import getParameter, GetParameterAPI, SetParameter
+from Extensions._RevitAPI import getParameter, GetParameterAPI, SetParameter, get_param_value
 from Extensions._Modulo import obtener_nombre_archivo, validar_nombre
 from DBRepositories.SpecialtiesRepository import SpecialtiesRepository
 from DBRepositories.SchoolRepository import ColegiosRepository
 from Helper._Excel import Excel
+from Helper._HSpecialties import get_current_specialty
 
 nombre_archivo = obtener_nombre_archivo()
 if not validar_nombre(nombre_archivo):
@@ -51,21 +52,23 @@ def extraer_medida(tipo_name):
 uidoc = revit.uidoc
 doc = revit.doc
 
-# ==== Obtenemos la especialidad del modelo activo y sus datos ====
-repo_specialties = SpecialtiesRepository()
-specialty_object = repo_specialties.get_specialty_by_document(doc)
-specialty = None
-sp_accesibility = None
-sp_code = None
-sp_sustainability = None
-sp_feature = None
+# ===== OBTENER ESPECIALIDAD USANDO EL HELPER CENTRALIZADO =====
+specialty_object = get_current_specialty(doc)
 
-if specialty_object:
-    specialty = specialty_object.name
-    sp_accesibility = specialty_object.accessibility_performance
-    sp_code = specialty_object.code_perfomance
-    sp_sustainability = specialty_object.sustainability
-    sp_feature = specialty_object.feature
+# Validar que se obtuvo la especialidad
+if not specialty_object:
+    forms.alert("No se pudo obtener la especialidad desde Información de Proyecto.\n"
+                "Verifique que el parámetro S&P_ESPECIALIDAD esté configurado correctamente.", 
+                exitscript=True)
+
+# Extraer los datos de la especialidad
+specialty = specialty_object.name
+sp_accesibility = specialty_object.accessibility_performance
+sp_code = specialty_object.code_perfomance
+sp_sustainability = specialty_object.sustainability
+sp_feature = specialty_object.feature
+
+print("Especialidad detectada: {}".format(specialty))
 
 # ==== Obtenemos el colegio correspondiente segun modelo y sus datos necesarios ====
 repo_schools = ColegiosRepository()

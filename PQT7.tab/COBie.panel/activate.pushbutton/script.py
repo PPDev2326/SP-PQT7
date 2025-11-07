@@ -27,23 +27,20 @@ from Autodesk.Revit.UI.Selection import ObjectType
 from Autodesk.Revit.Exceptions import OperationCanceledException
 from Extensions._Modulo import obtener_nombre_archivo, validar_nombre
 from Extensions._Ignore import leer_excel_filtrado
-from DBRepositories.SpecialtiesRepository import SpecialtiesRepository
+from Helper._HSpecialties import get_current_specialty
 
 def set_param(param, val):
     """Establece un valor entero en el parámetro si es modificable."""
     if param and not param.IsReadOnly and param.StorageType == StorageType.Integer:
         param.Set(val)
 
-def get_codigo_partida(elemento, documento):
+def get_codigo_partida(elemento, specialty_name):
     """
     Obtiene el código de partida del elemento según especialidad.
     Para INSTALACIONES ELECTRICAS/COMUNICACIONES: prioriza N°2, fallback a N°1.
     Otras especialidades: usa N°1. Retorna None si está vacío.
     """
-    specialty_obj = SpecialtiesRepository().get_specialty_by_document(documento)
-    specialty = specialty_obj.name if specialty_obj else None
-    
-    if specialty in ["INSTALACIONES ELECTRICAS", "COMUNICACIONES"]:
+    if specialty_name in ["INSTALACIONES ELECTRICAS", "COMUNICACIONES"]:
         # Intentar primero con CODIGO PARTIDA N°2
         param_n2 = elemento.LookupParameter("S&P_CODIGO PARTIDA N°2")
         if param_n2 and param_n2.HasValue:
@@ -125,9 +122,16 @@ except OperationCanceledException:
 sin_cobie_set = set(sin_cobie)
 con_cobie_set = set(con_cobie)
 
-# Obtener especialidad del documento
-specialty_obj = SpecialtiesRepository().get_specialty_by_document(doc)
-specialty_name = specialty_obj.name if specialty_obj else "No detectada"
+# ===== OBTENER ESPECIALIDAD USANDO EL HELPER CENTRALIZADO - UNA SOLA VEZ =====
+specialty_obj = get_current_specialty(doc)
+
+# Validar que se obtuvo la especialidad
+if not specialty_obj:
+    forms.alert("No se pudo obtener la especialidad desde Información de Proyecto.\n"
+                "Verifique que el parámetro S&P_ESPECIALIDAD esté configurado correctamente.", 
+                exitscript=True)
+
+specialty_name = specialty_obj.name
 print("Especialidad del documento: {}".format(specialty_name))
 
 # Tracker de tipos procesados por código de partida
@@ -200,7 +204,8 @@ with revit.Transaction("Toggle COBieType & COBie Component"):
                 pb.update_progress(elementos_procesados + 1, total_elementos)
                 
                 # Obtener código de partida del elemento de instancia
-                code = get_codigo_partida(el, doc)
+                # Pasamos specialty_name que ya obtuvimos antes
+                code = get_codigo_partida(el, specialty_name)
                 
                 # Calcular valor según lógica COBie
                 v = compute_value(code, sin_cobie_set, con_cobie_set, modo_activar)

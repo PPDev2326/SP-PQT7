@@ -12,6 +12,7 @@ from Extensions._Modulo import obtener_nombre_archivo, validar_nombre
 from Extensions._RevitAPI import getParameter, GetParameterAPI, SetParameter
 from DBRepositories.SpecialtiesRepository import SpecialtiesRepository
 from DBRepositories.SchoolRepository import ColegiosRepository
+from Helper._HSpecialties import get_current_specialty
 
 uidoc = revit.uidoc
 doc = revit.doc
@@ -62,8 +63,15 @@ if school_object:
     school = school_object.name
     created_by = school_object.created_by
 
-specialty_instance = SpecialtiesRepository()
-specialty_object = specialty_instance.get_specialty_by_document(doc)
+# ===== OBTENER ESPECIALIDAD USANDO EL HELPER CENTRALIZADO =====
+specialty_object = get_current_specialty(doc)
+
+# Validar que se obtuvo la especialidad
+if not specialty_object:
+    forms.alert("No se pudo obtener la especialidad desde Información de Proyecto.\n"
+                "Verifique que el parámetro S&P_ESPECIALIDAD esté configurado correctamente.", 
+                exitscript=True)
+
 specialty = specialty_object.name
 
 if specialty in ["INSTALACIONES SANITARIAS", "INSTALACIONES MECANICAS"]:

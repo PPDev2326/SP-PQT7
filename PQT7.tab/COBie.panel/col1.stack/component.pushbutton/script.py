@@ -14,6 +14,7 @@ from DBRepositories.SpecialtiesRepository import SpecialtiesRepository
 from Helper._Excel import Excel
 from Helper._Dictionary import find_mapped_number
 from datetime import datetime, timedelta
+from Helper._HSpecialties import get_current_specialty
 
 nombre_archivo = obtener_nombre_archivo()
 if not validar_nombre(nombre_archivo):
@@ -127,13 +128,16 @@ if school_object:
     created_by = school_object.created_by
     warranty_start_date = school_object.warranty_start_date.component_warranty
 
-# ==== Instanciamos la especialidad correspondiente al modelo ====
-specialty_repo = SpecialtiesRepository()
-specialty_object = specialty_repo.get_specialty_by_document(doc)
-specialty = None
+# ===== OBTENER ESPECIALIDAD USANDO EL HELPER CENTRALIZADO =====
+specialty_object = get_current_specialty(doc)
 
-if specialty_object:
-    specialty = specialty_object.name
+# Validar que se obtuvo la especialidad
+if not specialty_object:
+    forms.alert("No se pudo obtener la especialidad desde Información de Proyecto.\n"
+                "Verifique que el parámetro S&P_ESPECIALIDAD esté configurado correctamente.", 
+                exitscript=True)
+
+specialty = specialty_object.name
 
 print("\n" + "="*70)
 print("PROCESAMIENTO COBie COMPONENT - {}".format(specialty))

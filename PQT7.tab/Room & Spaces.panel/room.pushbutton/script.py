@@ -384,6 +384,8 @@ def asignar_ambiente(elemento, nombre_ambiente, numero_ambiente, failed_list):
     
     Si SOBRESCRIBIR_GLOBAL es False, solo asigna a parámetros vacíos individualmente.
     Retorna True si se asignó al menos uno, False si no se pudo asignar ninguno.
+    
+    CORREGIDO: Protección robusta contra sobrescritura accidental.
     """
     asignado_ambiente = False
     asignado_cobie = False
@@ -395,10 +397,16 @@ def asignar_ambiente(elemento, nombre_ambiente, numero_ambiente, failed_list):
             debe_asignar = SOBRESCRIBIR_GLOBAL
             
             if not SOBRESCRIBIR_GLOBAL:
-                # Solo asignar si está vacío
-                valor_actual = prm_ambiente.AsString()
-                if valor_actual is None or valor_actual.strip() == "":
-                    debe_asignar = True
+                # Try-catch ESPECÍFICO para proteger la lectura del valor
+                try:
+                    valor_actual = prm_ambiente.AsString()
+                    # Verificar si tiene valor real (no None, no vacío, no solo espacios)
+                    tiene_valor = valor_actual and valor_actual.strip() != ""
+                    debe_asignar = not tiene_valor  # Solo asignar si NO tiene valor
+                except:
+                    # Si hay ERROR leyendo el valor, NO sobrescribir por seguridad
+                    debe_asignar = False
+                    output.print_md("⚠️ Error leyendo S&P_AMBIENTE del elemento {} - No se sobrescribirá".format(elemento.Id))
             
             if debe_asignar:
                 prm_ambiente.Set(nombre_ambiente.upper())
@@ -410,10 +418,16 @@ def asignar_ambiente(elemento, nombre_ambiente, numero_ambiente, failed_list):
             debe_asignar = SOBRESCRIBIR_GLOBAL
             
             if not SOBRESCRIBIR_GLOBAL:
-                # Solo asignar si está vacío
-                valor_actual = prm_cobie.AsString()
-                if valor_actual is None or valor_actual.strip() == "":
-                    debe_asignar = True
+                # Try-catch ESPECÍFICO para proteger la lectura del valor
+                try:
+                    valor_actual = prm_cobie.AsString()
+                    # Verificar si tiene valor real (no None, no vacío, no solo espacios)
+                    tiene_valor = valor_actual and valor_actual.strip() != ""
+                    debe_asignar = not tiene_valor  # Solo asignar si NO tiene valor
+                except:
+                    # Si hay ERROR leyendo el valor, NO sobrescribir por seguridad
+                    debe_asignar = False
+                    output.print_md("⚠️ Error leyendo COBie del elemento {} - No se sobrescribirá".format(elemento.Id))
             
             if debe_asignar:
                 if numero_ambiente:
@@ -444,6 +458,8 @@ def asignar_ambiente_puerta_ventana(elemento, nombre_combinado, valor_cobie, fai
     - COBie.Component.Space: "23 : SALA, 26 : COMEDOR"
     
     Si SOBRESCRIBIR_GLOBAL es False, solo asigna a parámetros vacíos individualmente.
+    
+    CORREGIDO: Protección robusta contra sobrescritura accidental.
     """
     asignado_ambiente = False
     asignado_cobie = False
@@ -455,10 +471,16 @@ def asignar_ambiente_puerta_ventana(elemento, nombre_combinado, valor_cobie, fai
             debe_asignar = SOBRESCRIBIR_GLOBAL
             
             if not SOBRESCRIBIR_GLOBAL:
-                # Solo asignar si está vacío
-                valor_actual = prm_ambiente.AsString()
-                if valor_actual is None or valor_actual.strip() == "":
-                    debe_asignar = True
+                # Try-catch ESPECÍFICO para proteger la lectura del valor
+                try:
+                    valor_actual = prm_ambiente.AsString()
+                    # Verificar si tiene valor real (no None, no vacío, no solo espacios)
+                    tiene_valor = valor_actual and valor_actual.strip() != ""
+                    debe_asignar = not tiene_valor  # Solo asignar si NO tiene valor
+                except:
+                    # Si hay ERROR leyendo el valor, NO sobrescribir por seguridad
+                    debe_asignar = False
+                    output.print_md("⚠️ Error leyendo S&P_AMBIENTE del elemento {} - No se sobrescribirá".format(elemento.Id))
             
             if debe_asignar:
                 prm_ambiente.Set(nombre_combinado)
@@ -470,10 +492,16 @@ def asignar_ambiente_puerta_ventana(elemento, nombre_combinado, valor_cobie, fai
             debe_asignar = SOBRESCRIBIR_GLOBAL
             
             if not SOBRESCRIBIR_GLOBAL:
-                # Solo asignar si está vacío
-                valor_actual = prm_cobie.AsString()
-                if valor_actual is None or valor_actual.strip() == "":
-                    debe_asignar = True
+                # Try-catch ESPECÍFICO para proteger la lectura del valor
+                try:
+                    valor_actual = prm_cobie.AsString()
+                    # Verificar si tiene valor real (no None, no vacío, no solo espacios)
+                    tiene_valor = valor_actual and valor_actual.strip() != ""
+                    debe_asignar = not tiene_valor  # Solo asignar si NO tiene valor
+                except:
+                    # Si hay ERROR leyendo el valor, NO sobrescribir por seguridad
+                    debe_asignar = False
+                    output.print_md("⚠️ Error leyendo COBie del elemento {} - No se sobrescribirá".format(elemento.Id))
             
             if debe_asignar:
                 prm_cobie.Set(valor_cobie)

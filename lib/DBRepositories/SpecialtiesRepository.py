@@ -145,7 +145,7 @@ class SpecialtiesRepository(ISpecialtyRepository):
             "ST": Specialty("Estructuras", "ST"),
             "PL": Specialty("Instalaciones Sanitarias", "PL", "Resistencia al agua", "Norma Técnica de Edificación E.040", "Bajo consumo de agua", "Resistente al agua"),
             "EE": Specialty("Instalaciones Electricas", "EE", "Eficiencia energética", "Código Nacional de Electricidad (CNE)", "Eficiencia energetica", "Ahorro de energía"),
-            "DT": Specialty("Instalacion de Comunicacion", "DT", "Durabilidad a largo plazo", "Norma Técnica de Edificación E.090", "Resistencia a largo plazo", "Resistente al fuego"),
+            "DT": Specialty("Instalaciones de Comunicacion", "DT", "Durabilidad a largo plazo", "Norma Técnica de Edificación E.090", "Resistencia a largo plazo", "Resistente al fuego"),
             "ME": Specialty("Instalaciones Mecanicas", "ME", "Eficiencia energética", "Reglamento Nacional de Edificaciones (RNE)", "Eficiencia energetica", "Durabilidad")
         }
         

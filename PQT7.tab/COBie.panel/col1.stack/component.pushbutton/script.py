@@ -203,7 +203,7 @@ specialty_to_sheet = {
     "Arquitectura": "ESTANDAR COBIE  -AR",
     "Instalaciones Sanitarias": "ESTANDAR COBIE  - PL",
     "Instalaciones Electricas": "ESTANDAR COBIE  -EE",
-    "Instalacion de Comunicacion": "ESTANDAR COBIE  - IICC",
+    "Instalaciones de Comunicacion": "ESTANDAR COBIE  - IICC",
     "Instalaciones Mecanicas": "ESTANDAR COBIE  - ME"
 }
 

@@ -167,7 +167,7 @@ elif specialty == "Instalaciones Electricas":
     data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
     print("Datos de Eléctricas cargados:", len(data_list), "filas")
 
-elif specialty == "Instalacion de Comunicacion":
+elif specialty == "Instalaciones de Comunicacion":
     excel_instance = Excel()
     excel_rows = excel_instance.read_excel('ESTANDAR COBIE  - IICC')
     headers = excel_instance.get_headers(excel_rows, 2)

@@ -200,11 +200,11 @@ print("\n[INFO] Preparando carga de datos...")
 
 # Determinar nombre de hoja según especialidad
 specialty_to_sheet = {
-    "ARQUITECTURA": "ESTANDAR COBIE  -AR",
-    "INSTALACIONES SANITARIAS": "ESTANDAR COBIE  - PL",
-    "INSTALACIONES ELECTRICAS": "ESTANDAR COBIE  -EE",
-    "COMUNICACIONES": "ESTANDAR COBIE  - IICC",
-    "INSTALACIONES MECANICAS": "ESTANDAR COBIE  - ME"
+    "Arquitectura": "ESTANDAR COBIE  -AR",
+    "Instalaciones Sanitarias": "ESTANDAR COBIE  - PL",
+    "Instalaciones Electricas": "ESTANDAR COBIE  -EE",
+    "Instalacion de Comunicacion": "ESTANDAR COBIE  - IICC",
+    "Instalaciones Mecanicas": "ESTANDAR COBIE  - ME"
 }
 
 sheet_name = specialty_to_sheet.get(specialty)

@@ -143,7 +143,7 @@ except Exception as e:
 # ==== Obtenemos la hoja excel de acuerdo a la especialidad ====
 data_list = None
 
-if specialty == "ARQUITECTURA":
+if specialty == "Arquitectura":
     excel_instance = Excel()
     excel_rows = excel_instance.read_excel('ESTANDAR COBIE  -AR')
     headers = excel_instance.get_headers(excel_rows, 2)
@@ -151,7 +151,7 @@ if specialty == "ARQUITECTURA":
     data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
     print("Datos de Arquitectura cargados:", len(data_list), "filas")
 
-elif specialty == "INSTALACIONES SANITARIAS":
+elif specialty == "Instalaciones Sanitarias":
     excel_instance = Excel()
     excel_rows = excel_instance.read_excel('ESTANDAR COBIE  - PL')
     headers = excel_instance.get_headers(excel_rows, 2)
@@ -159,7 +159,7 @@ elif specialty == "INSTALACIONES SANITARIAS":
     data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
     print("Datos de Sanitarias cargados:", len(data_list), "filas")
 
-elif specialty == "INSTALACIONES ELECTRICAS":
+elif specialty == "Instalaciones Electricas":
     excel_instance = Excel()
     excel_rows = excel_instance.read_excel('ESTANDAR COBIE  -EE')
     headers = excel_instance.get_headers(excel_rows, 2)
@@ -167,7 +167,7 @@ elif specialty == "INSTALACIONES ELECTRICAS":
     data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
     print("Datos de Eléctricas cargados:", len(data_list), "filas")
 
-elif specialty == "COMUNICACIONES":
+elif specialty == "Instalacion de Comunicacion":
     excel_instance = Excel()
     excel_rows = excel_instance.read_excel('ESTANDAR COBIE  - IICC')
     headers = excel_instance.get_headers(excel_rows, 2)
@@ -175,7 +175,7 @@ elif specialty == "COMUNICACIONES":
     data_list = excel_instance.get_data_by_headers_required(excel_rows, headers_required, 3)
     print("Datos de Comunicaciones cargados:", len(data_list), "filas")
 
-elif specialty == "INSTALACIONES MECANICAS":
+elif specialty == "Instalaciones Mecanicas":
     excel_instance = Excel()
     excel_rows = excel_instance.read_excel('ESTANDAR COBIE  - ME')
     headers = excel_instance.get_headers(excel_rows, 2)

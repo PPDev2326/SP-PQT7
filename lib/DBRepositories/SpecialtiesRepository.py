@@ -141,12 +141,12 @@ class SpecialtiesRepository(ISpecialtyRepository):
             dict: Diccionario con las especialidades indexadas por sufijo
         """
         specialties = {
-            "AR": Specialty("ARQUITECTURA", "AR", "Durabilidad a largo plazo", "Reglamento Nacional de Edificaciones (RNE)", "Resistencia a largo plazo", "Resistente al desgaste"),
-            "ST": Specialty("ESTRUCTURAS", "ST"),
-            "PL": Specialty("INSTALACIONES SANITARIAS", "PL", "Resistencia al agua", "Norma Técnica de Edificación E.040", "Bajo consumo de agua", "Resistente al agua"),
-            "EE": Specialty("INSTALACIONES ELECTRICAS", "EE", "Eficiencia energética", "Código Nacional de Electricidad (CNE)", "Eficiencia energetica", "Ahorro de energía"),
-            "DT": Specialty("COMUNICACIONES", "DT", "Durabilidad a largo plazo", "Norma Técnica de Edificación E.090", "Resistencia a largo plazo", "Resistente al fuego"),
-            "ME": Specialty("INSTALACIONES MECANICAS", "ME", "Eficiencia energética", "Reglamento Nacional de Edificaciones (RNE)", "Eficiencia energetica", "Durabilidad")
+            "AR": Specialty("Arquitectura", "AR", "Durabilidad a largo plazo", "Reglamento Nacional de Edificaciones (RNE)", "Resistencia a largo plazo", "Resistente al desgaste"),
+            "ST": Specialty("Estructuras", "ST"),
+            "PL": Specialty("Instalaciones Sanitarias", "PL", "Resistencia al agua", "Norma Técnica de Edificación E.040", "Bajo consumo de agua", "Resistente al agua"),
+            "EE": Specialty("Instalaciones Electricas", "EE", "Eficiencia energética", "Código Nacional de Electricidad (CNE)", "Eficiencia energetica", "Ahorro de energía"),
+            "DT": Specialty("Instalacion de Comunicacion", "DT", "Durabilidad a largo plazo", "Norma Técnica de Edificación E.090", "Resistencia a largo plazo", "Resistente al fuego"),
+            "ME": Specialty("Instalaciones Mecanicas", "ME", "Eficiencia energética", "Reglamento Nacional de Edificaciones (RNE)", "Eficiencia energetica", "Durabilidad")
         }
         
         return specialties

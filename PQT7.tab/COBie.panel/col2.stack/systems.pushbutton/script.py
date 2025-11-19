@@ -74,15 +74,15 @@ if not specialty_object:
 
 specialty = specialty_object.name
 
-if specialty in ["INSTALACIONES SANITARIAS", "INSTALACIONES MECANICAS"]:
+if specialty in ["Instalaciones Sanitarias", "Instalaciones Mecanicas"]:
 
     # ==== Variables constantes ====
     CREATED_ON = "2025-04-18T16:45:10"
 
     # ==== Categoria de COBie.System.Category ====
     categoria = {
-        "INSTALACIONES SANITARIAS": "Ss_55_15 Water extraction, treatment and storage systems",
-        "INSTALACIONES MECANICAS": "Ss_65_60 Specialist ventilation systems"
+        "Instalaciones Sanitarias": "Ss_55_15 Water extraction, treatment and storage systems",
+        "Instalaciones Mecanicas": "Ss_65_60 Specialist ventilation systems"
     }
 
     ductwork_system = FilteredElementCollector(doc).OfCategory(

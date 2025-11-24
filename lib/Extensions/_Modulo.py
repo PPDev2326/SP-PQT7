@@ -10,7 +10,7 @@ from pyrevit import revit
 patron = re.compile(r"""
 ^200(?:04[5-7]|049|053|05[7-8]|06[013]|070)          # Código inicial
 -CSSP001                                            # Parte fija
--(?:000|41[5-9]|42[0-5]|43[89]|44[0-9]|45[0-6]|459) # Rango intermedio
+-(?:000|41[5-9]|42[0-9]|43[0-9]|44[0-9]|45[0-6]|459) # Rango intermedio
 -(ZZ|XX)-MD-(?:AR|ST|PL|EM|EE|ME|DT|BM)                     # Especialidad
 -(?:002[1-4]\d{2}|00000[1-5])                      # Secuencia final
 (?:-AB)?                                            # Parte -AB opcional

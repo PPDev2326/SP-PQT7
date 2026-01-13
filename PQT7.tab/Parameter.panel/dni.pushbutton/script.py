@@ -27,7 +27,7 @@ with revit.Transaction("Asignar Element ID"):
         e = doc.GetElement(r.ElementId)
         p = e.LookupParameter(param_name)
         if p and not p.IsReadOnly:
-            if p.Set(str(e.Id)):
+            if p.Set(e.Id):
                 asignados.append(e.Id)
             else:
                 faltantes.append(e.Id)

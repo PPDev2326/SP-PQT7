@@ -26,8 +26,18 @@ with revit.Transaction("Asignar Element ID"):
     for r in refs:
         e = doc.GetElement(r.ElementId)
         p = e.LookupParameter(param_name)
+        
         if p and not p.IsReadOnly:
-            if p.Set(e.Id):
+            # Obtenemos el valor entero dependiendo de la versión de Revit
+            try:
+                # Intenta la forma antigua (Revit < 2024)
+                id_val = e.Id.IntegerValue
+            except AttributeError:
+                # Si falla, usa la forma nueva (Revit 2024+)
+                id_val = e.Id.Value
+            
+            # Asignamos el valor numérico, no el objeto
+            if p.Set(id_val):
                 asignados.append(e.Id)
             else:
                 faltantes.append(e.Id)

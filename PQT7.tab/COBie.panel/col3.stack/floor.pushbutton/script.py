@@ -146,6 +146,23 @@ with revit.Transaction("Parametros COBie Floor"):
         else:
             skipped_levels.append(level.Name)
 
+# ==== VERIFICACIÓN: Leer los valores que quedaron en Revit ====
+output.print_md("## 🔍 VERIFICACIÓN - Valores en Revit:")
+for level in list_levels_object:
+    ob_param_buildingplan = GetParameterAPI(level, BuiltInParameter.LEVEL_IS_BUILDING_STORY)
+    if get_param_value(ob_param_buildingplan) == 1:
+        param_height = getParameter(level, "COBie.Floor.Height")
+        if param_height:
+            height_value = get_param_value(param_height)
+            height_in_meters = UnitUtils.ConvertFromInternalUnits(height_value, UnitTypeId.Meters) if height_value else 0.0
+            output.print_md("- **{0}**: COBie.Floor.Height = {1} pies = {2} m".format(
+                level.Name, 
+                round(height_value, 4) if height_value else "VACÍO",
+                round(height_in_meters, 2)
+            ))
+        else:
+            output.print_md("- **{0}**: ❌ Parámetro 'COBie.Floor.Height' NO ENCONTRADO".format(level.Name))
+
 # ==== Salidas profesionales ====
 if processed_levels:
     output.print_md("## ✅ Procesamiento COBie Floor completado")

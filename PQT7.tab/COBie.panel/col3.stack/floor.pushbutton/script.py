@@ -95,11 +95,11 @@ with revit.Transaction("Parametros COBie Floor"):
             else:
                 floor_height = elevation - last_elevation  # Diferencia con el nivel anterior
 
-            # CONVERTIR A METROS para el parámetro de Revit
-            floor_height_meters = UnitUtils.ConvertFromInternalUnits(floor_height, UnitTypeId.Meters)
-
             # Guardar elevación actual como referencia
             last_elevation = elevation
+
+            # CONVERTIR A METROS solo para el reporte
+            floor_height_meters = UnitUtils.ConvertFromInternalUnits(floor_height, UnitTypeId.Meters)
 
             parameters = {
                 "COBie.Floor.Name": level_name,
@@ -110,7 +110,7 @@ with revit.Transaction("Parametros COBie Floor"):
                     UnitUtils.ConvertFromInternalUnits(elevation, UnitTypeId.Meters)
                 ),
                 "COBie.Floor.Elevation": param_elevation_value + elevation,
-                "COBie.Floor.Height": floor_height_meters  # ← CONVERTIDO A METROS
+                "COBie.Floor.Height": floor_height  # ← EN UNIDADES INTERNAS (PIES)
             }
             parameters.update(parameters_static)
             

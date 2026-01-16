@@ -137,25 +137,33 @@ with revit.Transaction("Parametros COBie Floor"):
             if param and not param.IsReadOnly:
                 SetParameter(param, value)
 
-        # --- ESCRITURA ESPECÍFICA PARA HEIGHT (Solución del error) ---
-        # Lo hacemos manual para asegurar compatibilidad de tipos
+        # --- ESCRITURA ESPECÍFICA PARA HEIGHT (MODO DIAGNÓSTICO) ---
         param_height = getParameter(level, "COBie.Floor.Height")
         
-        if param_height and not param_height.IsReadOnly:
-            # Opción A: Es un parámetro de LONGITUD (Double) -> Revit espera pies
-            if param_height.StorageType == StorageType.Double:
-                param_height.Set(float(floor_height_internal))
-            
-            # Opción B: Es un parámetro de TEXTO (String) -> Revit espera texto en Metros
-            elif param_height.StorageType == StorageType.String:
-                val_meters = UnitUtils.ConvertFromInternalUnits(floor_height_internal, UnitTypeId.Meters)
-                param_height.Set("{:.2f}".format(val_meters))
+        if param_height:
+            if not param_height.IsReadOnly:
+                result = False # Variable para chequear si se guardó
                 
-            # Opción C: Es Integer (Raro para altura, pero por si acaso)
-            elif param_height.StorageType == StorageType.Integer:
-                 param_height.Set(int(floor_height_internal))
+                # Opción A: Es un parámetro de LONGITUD (Double)
+                if param_height.StorageType == StorageType.Double:
+                    result = param_height.Set(float(floor_height_internal))
+                    if not result: logger.warning("Fallo al escribir DOUBLE en: " + level_name)
+                
+                # Opción B: Es un parámetro de TEXTO (String)
+                elif param_height.StorageType == StorageType.String:
+                    val_meters = UnitUtils.ConvertFromInternalUnits(floor_height_internal, UnitTypeId.Meters)
+                    result = param_height.Set("{:.2f}".format(val_meters))
+                    if not result: logger.warning("Fallo al escribir STRING en: " + level_name)
+                    
+                # Opción C: Integer
+                elif param_height.StorageType == StorageType.Integer:
+                     result = param_height.Set(int(floor_height_internal))
+            else:
+                logger.error("El parámetro existe pero es SOLO LECTURA en el nivel: " + level_name)
+        else:
+            logger.error("NO SE ENCONTRÓ el parámetro 'COBie.Floor.Height' en el nivel: " + level_name)
 
-        # Guardar datos para el reporte (Convertimos a metros para visualizar)
+        # Guardar datos para el reporte
         height_m = UnitUtils.ConvertFromInternalUnits(floor_height_internal, UnitTypeId.Meters)
         processed_levels_data.append([level.Id.IntegerValue, level_name, category_value, round(height_m, 2)])
 

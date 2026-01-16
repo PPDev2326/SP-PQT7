@@ -137,33 +137,51 @@ with revit.Transaction("Parametros COBie Floor"):
             if param and not param.IsReadOnly:
                 SetParameter(param, value)
 
-        # --- ESCRITURA ESPECÍFICA PARA HEIGHT (MODO DIAGNÓSTICO) ---
+        # --- ESCRITURA ESPECÍFICA PARA HEIGHT (MÉTODO FUERZA BRUTA) ---
         param_height = getParameter(level, "COBie.Floor.Height")
         
         if param_height:
-            if not param_height.IsReadOnly:
-                result = False # Variable para chequear si se guardó
-                
-                # Opción A: Es un parámetro de LONGITUD (Double)
-                if param_height.StorageType == StorageType.Double:
-                    result = param_height.Set(float(floor_height_internal))
-                    if not result: logger.warning("Fallo al escribir DOUBLE en: " + level_name)
-                
-                # Opción B: Es un parámetro de TEXTO (String)
-                elif param_height.StorageType == StorageType.String:
-                    val_meters = UnitUtils.ConvertFromInternalUnits(floor_height_internal, UnitTypeId.Meters)
-                    result = param_height.Set("{:.2f}".format(val_meters))
-                    if not result: logger.warning("Fallo al escribir STRING en: " + level_name)
-                    
-                # Opción C: Integer
-                elif param_height.StorageType == StorageType.Integer:
-                     result = param_height.Set(int(floor_height_internal))
-            else:
-                logger.error("El parámetro existe pero es SOLO LECTURA en el nivel: " + level_name)
-        else:
-            logger.error("NO SE ENCONTRÓ el parámetro 'COBie.Floor.Height' en el nivel: " + level_name)
+            # Calculamos el valor en metros para texto
+            val_meters = UnitUtils.ConvertFromInternalUnits(floor_height_internal, UnitTypeId.Meters)
+            val_str = "{:.2f}".format(val_meters) # Ejemplo: "3.32"
+            
+            # --- DIAGNÓSTICO (Saldrá en la ventana de output) ---
+            print("\n🔍 Analizando Nivel: {}".format(level_name))
+            print("   - Parámetro encontrado: SI")
+            print("   - Tipo de Almacenamiento: {}".format(str(param_height.StorageType)))
+            print("   - Es Solo Lectura: {}".format(param_height.IsReadOnly))
+            print("   - Valor calculado interno (pies): {}".format(floor_height_internal))
+            print("   - Valor a escribir (texto): '{}'".format(val_str))
 
-        # Guardar datos para el reporte
+            if not param_height.IsReadOnly:
+                # INTENTO 1: Usar SetValueString (Simula escritura manual)
+                # Esto suele funcionar mejor para Longitud porque ignora conversiones internas complejas
+                resultado = param_height.SetValueString(val_str)
+                
+                if resultado:
+                    print("   ✅ Escritura con SetValueString: EXITOSA")
+                else:
+                    print("   ⚠️ SetValueString falló. Probando método nativo...")
+                    
+                    # INTENTO 2: Método nativo según tipo
+                    try:
+                        if param_height.StorageType == StorageType.Double:
+                            check = param_height.Set(float(floor_height_internal))
+                        elif param_height.StorageType == StorageType.String:
+                            check = param_height.Set(val_str)
+                        else:
+                            check = False
+                        
+                        print("   Resultado método nativo: {}".format("EXITO" if check else "FALLO"))
+                    except Exception as e:
+                        print("   ❌ Error crítico al escribir: {}".format(e))
+            else:
+                print("   ⛔ EL PARAMETRO ESTÁ BLOQUEADO (READ ONLY). Revisa la familia o fórmula.")
+        else:
+            print("\n❌ Nivel: {} -> NO SE ENCONTRÓ el parámetro 'COBie.Floor.Height'".format(level_name))
+            print("   (Revisa si hay espacios extra al final del nombre en Revit)")
+
+        # Guardar datos para el reporte final
         height_m = UnitUtils.ConvertFromInternalUnits(floor_height_internal, UnitTypeId.Meters)
         processed_levels_data.append([level.Id.IntegerValue, level_name, category_value, round(height_m, 2)])
 

@@ -117,7 +117,19 @@ with revit.Transaction("Parametros COBie Floor"):
             for parameter, value in parameters.items():
                 param = getParameter(level, parameter)
                 if param and not param.IsReadOnly:
-                    SetParameter(param, value)
+                    try:
+                        SetParameter(param, value)
+                        # Debug específico para Height
+                        if parameter == "COBie.Floor.Height":
+                            logger.info("✓ Height asignado a '{0}': {1} pies ({2} m)".format(
+                                level_name, 
+                                round(value, 4), 
+                                round(UnitUtils.ConvertFromInternalUnits(value, UnitTypeId.Meters), 2)
+                            ))
+                    except Exception as e:
+                        logger.error("Error al asignar '{0}' = {1} en '{2}': {3}".format(
+                            parameter, value, level_name, str(e)
+                        ))
                 else:
                     # Log si el parámetro no existe o es de solo lectura
                     if not param:

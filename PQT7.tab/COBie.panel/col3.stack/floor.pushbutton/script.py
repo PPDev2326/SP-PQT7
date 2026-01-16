@@ -3,10 +3,7 @@ __title__ = "COBie Floor"
 
 # ========== Obtenemos las librerias necesarias ==========
 from Autodesk.Revit.DB import FilteredElementCollector, Level, BuiltInParameter, BuiltInCategory, UnitUtils, UnitTypeId, StorageType
-from Autodesk.Revit.UI import TaskDialog
-from pyrevit import script, revit, forms
-
-# Importamos tus modulos personalizados (Asumiendo que funcionan correctamente)
+from pyrevit import script, revit
 from Extensions._Modulo import obtener_nombre_archivo, validar_nombre
 from Extensions._RevitAPI import get_param_value, GetParameterAPI, getParameter, SetParameter
 from DBRepositories.SchoolRepository import ColegiosRepository
@@ -35,7 +32,7 @@ CREATED_ON = "2024-12-12T13:29:49"
 # ==== Variables ====
 category_value = "Sin categoria"
 
-# ==== Inicializamos un diccionario con los parametros estáticos ====
+# ==== Inicializamos un diccionario con los parametros estaticos ====
 parameters_static = {
     "COBie.CreatedBy": created_by,
     "COBie.CreatedOn": CREATED_ON,
@@ -48,56 +45,63 @@ logger.info("Inicio del script")
 fec_basepoint = FilteredElementCollector(doc)
 survey_object = fec_basepoint.OfCategory(BuiltInCategory.OST_ProjectBasePoint).WhereElementIsNotElementType().FirstElement()
 ob_param_elevation = GetParameterAPI(survey_object, BuiltInParameter.BASEPOINT_ELEVATION_PARAM)
-# Aseguramos que sea float, a veces get_param_value devuelve string si no se controla
+# Aseguramos que sea float
 try:
-    param_elevation_value = float(get_param_value(ob_param_elevation))
+    base_elevation_value = float(get_param_value(ob_param_elevation))
 except:
-    param_elevation_value = 0.0
+    base_elevation_value = 0.0
 
 # ==== Obtenemos el project information ====
 fec_information = FilteredElementCollector(doc)
 information_object = fec_information.OfCategory(BuiltInCategory.OST_ProjectInformation).WhereElementIsNotElementType().FirstElement()
 param_information_value = get_param_value(getParameter(information_object, "SiteObjectType"))
-if not param_information_value: 
-    param_information_value = "" # Evitar error si es None
+if not param_information_value: param_information_value = ""
 
-# ==== Obtenemos y filtramos los niveles ====
-fec_levels = FilteredElementCollector(doc).OfClass(Level).WhereElementIsNotElementType().ToElements()
+# ==== Obtenemos y Procesamos los Niveles ====
+# 1. Obtener todos los niveles
+all_levels = FilteredElementCollector(doc).OfClass(Level).WhereElementIsNotElementType().ToElements()
 
-# Paso 1: Ordenar por elevación
-raw_levels = sorted(fec_levels, key=lambda lvl: lvl.Elevation)
+# 2. Ordenar por elevación (CRÍTICO para calcular alturas)
+sorted_levels = sorted(all_levels, key=lambda lvl: lvl.Elevation)
 
-# Paso 2: Crear una lista limpia solo con niveles que son "Building Story" para calcular alturas reales
+# 3. Filtrar solo los que son "Building Story" para la lógica de pisos
 valid_levels = []
-skipped_levels = []
+skipped_levels_names = []
 
-for lvl in raw_levels:
+for lvl in sorted_levels:
     is_building_story = lvl.get_Parameter(BuiltInParameter.LEVEL_IS_BUILDING_STORY).AsInteger() == 1
     if is_building_story:
         valid_levels.append(lvl)
     else:
-        skipped_levels.append(lvl.Name)
+        skipped_levels_names.append(lvl.Name)
 
-# ==== Variables para reporte ====
+# ==== Variables para recopilar datos de salida ====
 processed_levels_data = []
 
-# ==== Abrimos la transaction ====
+# ==== Abrimos la transaction para iniciar con los cambios ====
 with revit.Transaction("Parametros COBie Floor"):
-    
-    # Iteramos usando índice para poder "mirar al siguiente nivel"
-    total_valid = len(valid_levels)
-    
-    for i in range(total_valid):
+
+    total_levels = len(valid_levels)
+
+    # Iteramos por índice para poder acceder al "siguiente" nivel
+    for i in range(total_levels):
         level = valid_levels[i]
-        
-        # Datos básicos
         level_name = level.Name
-        elevation = level.Elevation
+        elevation = level.Elevation # Esto está en PIES (Internal Units)
         
         # Obtener zonificación
         ob_param_zoning = getParameter(level, "S&P_ZONIFICACION")
         param_zoning_value = get_param_value(ob_param_zoning)
         if not param_zoning_value: param_zoning_value = ""
+
+        # --- LÓGICA DE ALTURA (HEIGHT) ---
+        # Si no es el último nivel, la altura es (Elevación Siguiente - Elevación Actual)
+        if i < total_levels - 1:
+            next_level = valid_levels[i+1]
+            floor_height_feet = next_level.Elevation - elevation
+        else:
+            # Es el último nivel (azotea/techo), altura 0 o estandar
+            floor_height_feet = 0.0
 
         # --- LÓGICA DE CATEGORÍA ---
         if "Sitio" in param_information_value:
@@ -109,16 +113,7 @@ with revit.Transaction("Parametros COBie Floor"):
         else:
             category_value = "Sin categoria"
 
-        # --- LÓGICA DE ALTURA (HEIGHT) ---
-        # La altura es: Elevación del siguiente nivel - Elevación del actual
-        if i < total_valid - 1:
-            next_level = valid_levels[i+1]
-            floor_height_internal = next_level.Elevation - elevation
-        else:
-            # Es el último nivel (azotea), asumimos 0 o una altura estándar
-            floor_height_internal = 0.0 
-
-        # --- PREPARAR PARÁMETROS GENERALES ---
+        # --- PREPARAR PARÁMETROS ---
         parameters = {
             "COBie.Floor.Name": level_name,
             "COBie.Floor.Category": category_value,
@@ -127,64 +122,27 @@ with revit.Transaction("Parametros COBie Floor"):
                 param_zoning_value, 
                 UnitUtils.ConvertFromInternalUnits(elevation, UnitTypeId.Meters)
             ),
-            "COBie.Floor.Elevation": param_elevation_value + elevation,
+            # Elevation es Longitud -> Pasamos Pies (Internal + Base)
+            "COBie.Floor.Elevation": base_elevation_value + elevation,
         }
         parameters.update(parameters_static)
-
-        # Escribir parámetros generales usando tu función helper
+        
+        # Llenamos los parámetros generales
         for parameter_name, value in parameters.items():
             param = getParameter(level, parameter_name)
             if param and not param.IsReadOnly:
                 SetParameter(param, value)
 
-        # --- ESCRITURA ESPECÍFICA PARA HEIGHT (MÉTODO FUERZA BRUTA) ---
+        # --- ESCRITURA ESPECÍFICA PARA HEIGHT (LONGITUD/DOUBLE) ---
         param_height = getParameter(level, "COBie.Floor.Height")
-        
-        if param_height:
-            # Calculamos el valor en metros para texto
-            val_meters = UnitUtils.ConvertFromInternalUnits(floor_height_internal, UnitTypeId.Meters)
-            val_str = "{:.2f}".format(val_meters) # Ejemplo: "3.32"
-            
-            # --- DIAGNÓSTICO (Saldrá en la ventana de output) ---
-            print("\n🔍 Analizando Nivel: {}".format(level_name))
-            print("   - Parámetro encontrado: SI")
-            print("   - Tipo de Almacenamiento: {}".format(str(param_height.StorageType)))
-            print("   - Es Solo Lectura: {}".format(param_height.IsReadOnly))
-            print("   - Valor calculado interno (pies): {}".format(floor_height_internal))
-            print("   - Valor a escribir (texto): '{}'".format(val_str))
+        if param_height and not param_height.IsReadOnly:
+            # Como es tipo Longitud, pasamos el float directo (PIES)
+            # NO convertir a texto ni a metros aquí.
+            param_height.Set(float(floor_height_feet))
 
-            if not param_height.IsReadOnly:
-                # INTENTO 1: Usar SetValueString (Simula escritura manual)
-                # Esto suele funcionar mejor para Longitud porque ignora conversiones internas complejas
-                resultado = param_height.SetValueString(val_str)
-                
-                if resultado:
-                    print("   ✅ Escritura con SetValueString: EXITOSA")
-                else:
-                    print("   ⚠️ SetValueString falló. Probando método nativo...")
-                    
-                    # INTENTO 2: Método nativo según tipo
-                    try:
-                        if param_height.StorageType == StorageType.Double:
-                            check = param_height.Set(float(floor_height_internal))
-                        elif param_height.StorageType == StorageType.String:
-                            check = param_height.Set(val_str)
-                        else:
-                            check = False
-                        
-                        print("   Resultado método nativo: {}".format("EXITO" if check else "FALLO"))
-                    except Exception as e:
-                        print("   ❌ Error crítico al escribir: {}".format(e))
-            else:
-                print("   ⛔ EL PARAMETRO ESTÁ BLOQUEADO (READ ONLY). Revisa la familia o fórmula.")
-        else:
-            print("\n❌ Nivel: {} -> NO SE ENCONTRÓ el parámetro 'COBie.Floor.Height'".format(level_name))
-            print("   (Revisa si hay espacios extra al final del nombre en Revit)")
-
-        # Guardar datos para el reporte final
-        height_m = UnitUtils.ConvertFromInternalUnits(floor_height_internal, UnitTypeId.Meters)
+        # --- DATOS PARA REPORTE (Visualización en Metros) ---
+        height_m = UnitUtils.ConvertFromInternalUnits(floor_height_feet, UnitTypeId.Meters)
         processed_levels_data.append([level.Id.IntegerValue, level_name, category_value, round(height_m, 2)])
-
 
 # ==== Salidas profesionales ====
 if processed_levels_data:
@@ -194,7 +152,7 @@ if processed_levels_data:
     for level_id, level_name, category, height in processed_levels_data:
         output.print_md("- **{0}** | {1} | {2} | Altura: {3} m".format(level_id, level_name, category, height))
 
-if skipped_levels:
+if skipped_levels_names:
     output.print_md("### ⚠️ Niveles ignorados (no son plantas de edificación):")
-    for name in skipped_levels:
+    for name in skipped_levels_names:
         output.print_md("- {0}".format(name))

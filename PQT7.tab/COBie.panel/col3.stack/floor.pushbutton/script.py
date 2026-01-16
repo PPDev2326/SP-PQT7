@@ -1,112 +1,134 @@
 # -*- coding: utf-8 -*-
-__title__ = "COBie Floor - NUCLEAR FIX"
+__title__ = "COBie Floor"
 
-from Autodesk.Revit.DB import FilteredElementCollector, Level, BuiltInParameter, BuiltInCategory, UnitUtils, UnitTypeId, StorageType
-from pyrevit import script, revit
+# ========== Obtenemos las librerias necesarias ==========
+from Autodesk.Revit.DB import FilteredElementCollector, Level, BuiltInParameter, BuiltInCategory, UnitUtils, UnitTypeId
+from Autodesk.Revit.UI import TaskDialog
+from pyrevit import script, revit, forms
 from Extensions._Modulo import obtener_nombre_archivo, validar_nombre
 from Extensions._RevitAPI import get_param_value, GetParameterAPI, getParameter, SetParameter
 from DBRepositories.SchoolRepository import ColegiosRepository
 
+# ==== obtenemos el documento y el uidocument del modelo activo ====
 doc = revit.doc
-output = script.get_output()
-logger = script.get_logger()
+uidoc = revit.uidoc
 
-# --- VALIDACIONES INICIALES ---
 nombre_archivo = obtener_nombre_archivo()
-if not validar_nombre(nombre_archivo): script.exit()
+if not validar_nombre(nombre_archivo):
+    script.exit()
 
+# ==== Instanciamos el colegio correspondiente al modelo actual ====
 schools_repositories = ColegiosRepository()
 ob_school = schools_repositories.codigo_colegio(doc)
 school = ob_school.name
 created_by = ob_school.created_by
+
+# ==== Instanciamos la salida output y logger ====
+output = script.get_output()
+logger = script.get_logger()
+
+# ==== variables estaticas ====
 CREATED_ON = "2024-12-12T13:29:49"
-parameters_static = { "COBie.CreatedBy": created_by, "COBie.CreatedOn": CREATED_ON }
 
-# --- PREPARACIÓN DE DATOS ---
-# Base Point Elevation
-fec_bp = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_ProjectBasePoint).FirstElement()
-bp_elev = 0.0
-if fec_bp:
-    p = fec_bp.get_Parameter(BuiltInParameter.BASEPOINT_ELEVATION_PARAM)
-    if p: bp_elev = p.AsDouble()
+# ==== Variables ====
+category_value = "Sin categoria"
 
-# Site Type
-fec_info = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_ProjectInformation).FirstElement()
-info_site = ""
-if fec_info:
-    p = fec_info.LookupParameter("SiteObjectType")
-    if p: info_site = p.AsString() or ""
-
-# Niveles
-all_levels = FilteredElementCollector(doc).OfClass(Level).WhereElementIsNotElementType().ToElements()
-sorted_levels = sorted(all_levels, key=lambda l: l.Elevation)
-valid_levels = [l for l in sorted_levels if l.get_Parameter(BuiltInParameter.LEVEL_IS_BUILDING_STORY).AsInteger() == 1]
-
-processed_data = []
-
-# =======================================================
-#               INICIO DE TRANSACCIÓN
-# =======================================================
-with revit.Transaction("COBie Floor - Fix Nuclear"):
-    total = len(valid_levels)
-    
-    for i in range(total):
-        lvl = valid_levels[i]
-        
-        # 1. CALCULO DE ALTURA (PIES)
-        if i < total - 1:
-            raw_height = valid_levels[i+1].Elevation - lvl.Elevation
-        else:
-            raw_height = 0.0
-            
-        # 2. CATEGORIA
-        cat = "Floor"
-        if "Sitio" in info_site: cat = "Site"
-        elif "techo" in lvl.Name.lower(): cat = "Roof"
-        
-        # 3. LLENADO PARAMETROS TEXTO
-        params = {
-            "COBie.Floor.Name": lvl.Name,
-            "COBie.Floor.Category": cat,
-            "COBie.Floor.Elevation": bp_elev + lvl.Elevation
+# ==== Inicializamos un diccionario con los parametros a utilizar como claves
+parameters_static = {
+            "COBie.CreatedBy": created_by,
+            "COBie.CreatedOn": CREATED_ON,
         }
-        params.update(parameters_static)
-        for k, v in params.items():
-            p = getParameter(lvl, k)
-            if p and not p.IsReadOnly: SetParameter(p, v)
-            
-        # =======================================================
-        # 4. ESCRITURA DE HEIGHT (METODO MULTIPLE)
-        # =======================================================
-        # Buscamos TODOS los parametros con ese nombre
-        found_params = lvl.GetParameters("COBie.Floor.Height")
-        
-        write_status = "No encontrado"
-        count_found = len(found_params)
-        
-        if count_found > 0:
-            success_count = 0
-            for param in found_params:
-                if not param.IsReadOnly:
-                    # Chequeo estricto de tipo
-                    if param.StorageType == StorageType.Double:
-                        check = param.Set(float(raw_height)) # Escribe PIES
-                        if check: success_count += 1
-                    elif param.StorageType == StorageType.String:
-                        # Por si acaso tienes uno de texto colado
-                        m_val = UnitUtils.ConvertFromInternalUnits(raw_height, UnitTypeId.Meters)
-                        param.Set("{:.2f}".format(m_val))
-            
-            write_status = "Escrito en {} de {} parametros".format(success_count, count_found)
-        
-        # Guardar Log
-        h_m = UnitUtils.ConvertFromInternalUnits(raw_height, UnitTypeId.Meters)
-        processed_data.append([lvl.Id.IntegerValue, lvl.Name, h_m, write_status])
 
-# --- REPORTE ---
-if processed_data:
-    output.print_md("## REPORTE DIAGNÓSTICO FINAL")
-    print("{:<10} | {:<20} | {:<10} | {:<30}".format("ID", "Nivel", "Alt(m)", "Estado"))
-    print("-" * 80)
-    for pid, name, h, stat in processed_data:
-        print("{:<10} | {:<20} | {:<10.2f} | {:<30}".format(pid, name, h, stat))
+# ==== Log para debug ====
+logger.info("Inicio del script")
+
+# ==== Obtenemos los niveles del modelo con el FilteredElementCollector ====
+fec_levels = FilteredElementCollector(doc)
+list_levels_object = fec_levels.OfClass(Level).WhereElementIsNotElementType().ToElements()
+
+list_levels_object = sorted(list_levels_object, key=lambda lvl: lvl.Elevation)
+
+# ==== Obtenemos el punto base del proyecto ====
+fec_basepoint = FilteredElementCollector(doc)
+survey_object = fec_basepoint.OfCategory(BuiltInCategory.OST_ProjectBasePoint).WhereElementIsNotElementType().FirstElement()
+ob_param_elevation = GetParameterAPI(survey_object, BuiltInParameter.BASEPOINT_ELEVATION_PARAM)
+param_elevation_value = get_param_value(ob_param_elevation)
+
+# ==== Obtenemos el project information ====
+fec_information = FilteredElementCollector(doc)
+information_object = fec_information.OfCategory(BuiltInCategory.OST_ProjectInformation).WhereElementIsNotElementType().FirstElement()
+param_information_value = get_param_value(getParameter(information_object, "SiteObjectType"))
+
+# ==== Variables para recopilar datos de salida ====
+processed_levels = []
+skipped_levels = []
+
+last_elevation = None  # Para calcular diferencias de altura
+
+# ==== Abrimos la transaction para iniciar con los cambios ====
+with revit.Transaction("Parametros COBie Floor"):
+
+    for level in list_levels_object:
+        ob_param_buildingplan = GetParameterAPI(level, BuiltInParameter.LEVEL_IS_BUILDING_STORY)
+        param_buildingplan_value = get_param_value(ob_param_buildingplan)
+        
+        ob_param_zoning = getParameter(level, "S&P_ZONIFICACION")
+        param_zoning_value = get_param_value(ob_param_zoning)
+        
+        if param_buildingplan_value == 1:
+            level_name = level.Name
+            elevation = level.Elevation if isinstance(level, Level) else 0.0
+
+            # Determinar categoría
+            if "Sitio" in param_information_value:
+                category_value = "Site"
+            elif "nivel" in level_name.lower() or "piso" in level_name.lower():
+                category_value = "Floor"
+            elif "techo" in level_name.lower() or "cobertura" in level_name.lower():
+                category_value = "Roof"
+            else:
+                category_value = "Sin categoria"
+
+            # Calcular altura (Height)
+            if last_elevation is None:
+                floor_height = elevation  # Primer nivel: su elevación respecto al base
+            else:
+                floor_height = elevation - last_elevation  # Diferencia con el nivel anterior
+
+            # Guardar elevación actual como referencia
+            last_elevation = elevation
+
+            parameters= {
+                "COBie.Floor.Name": level_name,
+                "COBie.Floor.Category": category_value,
+                "COBie.Floor.Description": "{}-{} (NPT:{:+.2f})".format(
+                    level_name, 
+                    param_zoning_value, 
+                    UnitUtils.ConvertFromInternalUnits(elevation, UnitTypeId.Meters)
+                ),
+                "COBie.Floor.Elevation": param_elevation_value + elevation,
+                "COBie.Floor.Height": floor_height
+            }
+            parameters.update(parameters_static)
+            
+            for parameter, value in parameters.items():
+                param = getParameter(level, parameter)
+                if param and not param.IsReadOnly:
+                    SetParameter(param, value)
+
+            processed_levels.append([level.Id.IntegerValue, level_name, category_value, round(floor_height, 2)])
+        else:
+            skipped_levels.append(level.Name)
+
+# ==== Salidas profesionales ====
+if processed_levels:
+    output.print_md("## ✅ Procesamiento COBie Floor completado")
+    output.print_md("**Niveles procesados:** {0}".format(len(processed_levels)))
+
+    for level_id, level_name, category, height in processed_levels:
+        output.print_md("- **{0}** | {1} | {2} | Altura: {3} m".format(level_id, level_name, category, height))
+
+if skipped_levels:
+    output.print_md("### ⚠️ Niveles ignorados (no son plantas de edificación):")
+    for name in skipped_levels:
+        output.print_md("- {0}".format(name))

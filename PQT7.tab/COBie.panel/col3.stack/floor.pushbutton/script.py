@@ -89,16 +89,19 @@ with revit.Transaction("Parametros COBie Floor"):
             else:
                 category_value = "Sin categoria"
 
-            # Calcular altura (Height)
+            # Calcular altura (Height) en unidades internas (pies)
             if last_elevation is None:
                 floor_height = elevation  # Primer nivel: su elevación respecto al base
             else:
                 floor_height = elevation - last_elevation  # Diferencia con el nivel anterior
 
+            # CONVERTIR A METROS para el parámetro de Revit
+            floor_height_meters = UnitUtils.ConvertFromInternalUnits(floor_height, UnitTypeId.Meters)
+
             # Guardar elevación actual como referencia
             last_elevation = elevation
 
-            parameters= {
+            parameters = {
                 "COBie.Floor.Name": level_name,
                 "COBie.Floor.Category": category_value,
                 "COBie.Floor.Description": "{}-{} (NPT:{:+.2f})".format(
@@ -107,7 +110,7 @@ with revit.Transaction("Parametros COBie Floor"):
                     UnitUtils.ConvertFromInternalUnits(elevation, UnitTypeId.Meters)
                 ),
                 "COBie.Floor.Elevation": param_elevation_value + elevation,
-                "COBie.Floor.Height": floor_height
+                "COBie.Floor.Height": floor_height_meters  # ← CONVERTIDO A METROS
             }
             parameters.update(parameters_static)
             
@@ -115,8 +118,19 @@ with revit.Transaction("Parametros COBie Floor"):
                 param = getParameter(level, parameter)
                 if param and not param.IsReadOnly:
                     SetParameter(param, value)
+                else:
+                    # Log si el parámetro no existe o es de solo lectura
+                    if not param:
+                        logger.warning("Parametro '{0}' no encontrado en nivel '{1}'".format(parameter, level_name))
+                    elif param.IsReadOnly:
+                        logger.warning("Parametro '{0}' es de solo lectura en nivel '{1}'".format(parameter, level_name))
 
-            processed_levels.append([level.Id.IntegerValue, level_name, category_value, round(floor_height, 2)])
+            processed_levels.append([
+                level.Id.IntegerValue, 
+                level_name, 
+                category_value, 
+                round(floor_height_meters, 2)
+            ])
         else:
             skipped_levels.append(level.Name)
 
